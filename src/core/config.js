@@ -35,7 +35,7 @@ export async function loadFrameworks() {
 export async function loadComponents(ids) {
   const dir = join(ROOT, "components");
   const specs = [];
-  for (const f of readdirSync(dir).filter((f) => f.endsWith(".js")).sort()) {
+  for (const f of readdirSync(dir).filter((f) => f.endsWith(".js") && !f.startsWith("_")).sort()) {
     const spec = await load(join(dir, f));
     if (!ids || ids.includes(spec.id)) specs.push(spec);
   }

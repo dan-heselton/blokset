@@ -5,9 +5,11 @@ export const defaultTokens = {
   surface: "#f4f1ea",
   "surface-2": "#e8e2d4",
   ink: "#141414",
+  "ink-2": "#22211f",
   accent: "#ff5b2e",
   // Text
   "ink-muted": "#5c5a55",
+  "ink-soft": "rgba(20, 20, 20, 0.72)",
   "text-inverse": "#ffffff",
   "surface-muted": "rgba(244, 241, 234, 0.62)",
   // Lines & overlays

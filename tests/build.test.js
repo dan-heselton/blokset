@@ -201,6 +201,31 @@ test("boolean if: validator, static omission, and dynamic wrappers", () => {
   assert.equal(JSON.stringify(generateWebflow(spec, ctx, resolved, { values: { show: true, hide: true, label: "Hi", items: [] } })).includes("Hi"), true);
 });
 
+test("theme helper: palettes, base styles, and button remaps agree", async () => {
+  const { PALETTES, themeBase, themeVariant, radius, pad, border, inset0, mono } = await import("../components/_lib/themes.js");
+  assert.equal(PALETTES.light.bg, "surface");
+  assert.equal(PALETTES.dark.card, "ink-2");
+  assert.equal(PALETTES.accent.muted, "ink-soft");
+  assert.deepEqual(themeBase("dark", { "background-color": "bg", color: "fg" }), {
+    "background-color": "token(ink)",
+    color: "token(surface)",
+  });
+  const group = themeVariant({
+    default: "light",
+    options: ["light", "dark", "accent"],
+    map: { section: { "background-color": "bg" }, heading: { color: "fg" } },
+  });
+  assert.equal(group.options.light, null);
+  assert.equal(group.options.dark.styles.section.base["background-color"], "token(ink)");
+  assert.deepEqual(group.options.dark.buttons, { dark: "primary", secondary: "secondary-alt" });
+  assert.deepEqual(group.options.accent.buttons, { primary: "dark", "secondary-alt": "secondary" });
+  assert.equal(radius()["border-top-left-radius"], "token(radius)");
+  assert.equal(pad("1rem")["padding-bottom"], "1rem");
+  assert.equal(border()["border-top-color"], "token(line)");
+  assert.equal(inset0.top, "0");
+  assert.equal(mono("token(ink-muted)")["font-family"], "token(font-mono)");
+});
+
 test("project config: styles: none keeps class names but drops button CSS", () => {
   const custom = { ...config, classes: { button: { styles: "none" } } };
   const ctx = createContext(custom, frameworks["client-first"]);
