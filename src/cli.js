@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // forge build | dev | list | add <id...> --target <t> --out <dir> [--framework <f>] [--config <path>]
-import { resolve, join, relative } from "node:path";
-import { existsSync } from "node:fs";
+import { dirname, resolve, join, relative } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { buildProject, targetFiles, writeFiles } from "./build.js";
 import { ROOT, ALL_TARGETS, loadConfig, loadFrameworks, loadComponents, createContext } from "./core/config.js";
+import { snapshotFromExport } from "./sync.js";
 
 const [cmd = "help", ...rest] = process.argv.slice(2);
 const flags = {};
@@ -19,7 +20,9 @@ for (let i = 0; i < rest.length; i++) {
 const HELP = `Component Forge
 
   forge dev                         Gallery at http://localhost:4400 with live reload
-  forge build                       Build every framework × target into dist/
+  forge build [--config <path>]        Build every framework × target into dist/
+  forge sync <styles.json> --out <file> [--site <id>]
+                                    Save a get_styles export for Class Sync
   forge list                        List components
   forge add <id...> --target <t> --out <dir> [--framework <f>] [--config <path>] [--no-shared]
                                     Write components into an existing project
@@ -34,8 +37,20 @@ Examples
 async function main() {
   switch (cmd) {
     case "build":
-      await buildProject({ dev: Boolean(flags.dev) });
+      await buildProject({ dev: Boolean(flags.dev), configPath: flags.config ? resolve(flags.config) : undefined });
       break;
+
+    case "sync": {
+      const inputPath = positional[0];
+      if (!inputPath) throw new Error("forge sync <styles.json> --out <file> [--site <id>]");
+      if (!flags.out) throw new Error("--out <file> is required");
+      const snapshot = snapshotFromExport(JSON.parse(readFileSync(resolve(inputPath), "utf8")), { site: flags.site || "" });
+      const out = resolve(flags.out);
+      mkdirSync(dirname(out), { recursive: true });
+      writeFileSync(out, JSON.stringify(snapshot, null, 2));
+      console.log(`Synced ${snapshot.count} styles → ${relative(process.cwd(), out) || "."}`);
+      break;
+    }
 
     case "dev": {
       const { startDev } = await import("./dev.js");

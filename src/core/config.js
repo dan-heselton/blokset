@@ -1,5 +1,5 @@
-import { readdirSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { readdirSync, existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createTokens } from "./tokens.js";
 
@@ -19,6 +19,12 @@ export async function loadConfig(configPath = join(ROOT, "forge.config.js")) {
     ...user,
   };
   config.frameworks = [...new Set([config.framework, ...(user.frameworks ?? [])])];
+  if (config.webflow?.snapshot) {
+    const file = resolve(dirname(configPath), config.webflow.snapshot);
+    if (!existsSync(file)) throw new Error(`Webflow snapshot not found: ${file}`);
+    const snapshot = JSON.parse(readFileSync(file, "utf8"));
+    config.webflow = { ...config.webflow, styles: snapshot.styles || {} };
+  }
   return config;
 }
 

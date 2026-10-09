@@ -6,6 +6,8 @@ import { validateSpec } from "../src/core/validate.js";
 import { resolveComponent, allSelections, selectionKey } from "../src/core/resolve.js";
 import { componentCss, generateReact, generateAstro, generateHtml, generateVanilla } from "../src/generators/code.js";
 import { generateWebflow } from "../src/generators/webflow.js";
+import { WEBFLOW_PROPERTY_ORDER } from "../src/core/webflow-order.js";
+import { snapshotFromExport } from "../src/sync.js";
 import { componentManifest, variablesManifest } from "../src/generators/webflow-manifest.js";
 import { renderMarkup } from "../src/generators/markup.js";
 
@@ -267,6 +269,72 @@ test("webflow manifest covers every prop and variant option", () => {
   assert.equal(variables.variables.find((item) => item.name === "ink-2").value, "#22211f");
   assert.equal(variables.variables.find((item) => item.name === "radius").type, "Size");
   assert.equal(variables.variables.find((item) => item.name === "font-display").type, "FontFamily");
+});
+
+test("webflow styleLess follows Webflow property order and omits unmapped fonts", () => {
+  const rank = new Map(WEBFLOW_PROPERTY_ORDER.map((name, index) => [name, index]));
+  const follows = (styleLess) => {
+    const names = [...String(styleLess).matchAll(/(^| )([a-z-]+):/g)].map((match) => match[2]);
+    let last = -1;
+    let unknown = false;
+    for (const name of names) {
+      if (!rank.has(name)) {
+        unknown = true;
+        continue;
+      }
+      if (unknown || rank.get(name) < last) return false;
+      last = rank.get(name);
+    }
+    return true;
+  };
+  const ctx = createContext(config, frameworks["client-first"]);
+  for (const spec of specs) {
+    const { payload } = generateWebflow(spec, ctx);
+    for (const style of payload.styles) {
+      assert.equal(follows(style.styleLess), true, `${spec.id} ${style.name}`);
+      for (const variant of Object.values(style.variants || {})) assert.equal(follows(variant.styleLess), true, `${spec.id} ${style.name} breakpoint`);
+      assert.equal(style.styleLess.includes("font-family"), false);
+      for (const variant of Object.values(style.variants || {})) assert.equal(variant.styleLess.includes("font-family"), false);
+    }
+  }
+  const mapped = createContext({ ...config, webflow: { fonts: { "font-display": "Inter Tight" } } }, frameworks["client-first"]);
+  const hero = specs.find((spec) => spec.id === "hero-05");
+  const pasted = JSON.stringify(generateWebflow(hero, mapped));
+  assert.match(pasted, /font-family: Inter Tight;/);
+  assert.match(componentCss(hero, resolveComponent(hero, mapped), mapped), /var\(--forge-font-display\)/);
+  const hidden = generateWebflow(specs.find((spec) => spec.id === "features-12"), ctx).payload;
+  assert.equal(hidden.styles.some((style) => style.name === "features12_image"), false);
+  const heroPaste = generateWebflow(hero, ctx).payload;
+  assert.equal(heroPaste.styles.some((style) => style.name === "hero05_eyebrow"), false);
+});
+
+test("class sync pastes the snapshot styleLess, including variable refs", () => {
+  const exported = {
+    result: [
+      {
+        selector: ".section_features12",
+        properties: [
+          { property_name: "display", property_value: "block" },
+          { property_name: "background-color", property_value: { id: "variable-ink" } },
+          { property_name: "color", property_value: "#ffffff" },
+        ],
+        breakpoints: { medium: { "padding-top": "2rem" }, tiny: { "padding-top": "1rem" } },
+      },
+    ],
+  };
+  const snapshot = snapshotFromExport(exported, { site: "example" });
+  assert.equal(snapshot.count, 1);
+  assert.equal(snapshot.site, "example");
+  const expectedMain = "display: block; background-color: @var_variable-ink; color: #ffffff;";
+  const ctx = createContext({
+    ...config,
+    webflow: { styles: snapshot.styles },
+  }, frameworks["client-first"]);
+  const { payload } = generateWebflow(specs.find((spec) => spec.id === "features-12"), ctx);
+  const section = payload.styles.find((style) => style.name === "section_features12");
+  assert.equal(section.styleLess, expectedMain);
+  assert.equal(section.variants.medium.styleLess, "padding-top: 2rem;");
+  assert.equal(section.variants.tiny.styleLess, "padding-top: 1rem;");
 });
 
 test("project config: styles: none keeps class names but drops button CSS", () => {

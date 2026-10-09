@@ -132,4 +132,10 @@ export interface ForgeConfig {
       styles?: "forge" | "none";
     };
   };
+  /** Site-specific Webflow paste settings. `snapshot` is a path relative to this config file. */
+  webflow?: {
+    snapshot?: string;
+    /** Installed site fonts, keyed by token name. Unmapped font-family values are omitted from pastes. */
+    fonts?: Record<string, string>;
+  };
 }

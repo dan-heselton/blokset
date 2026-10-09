@@ -6,6 +6,7 @@ import { resolveComponent, usesRuntime, allSelections, selectionKey } from "./co
 import { sharedCss } from "./core/css.js";
 import { generateReact, generateAstro, generateHtml, generateVanilla, componentCss, pascal } from "./generators/code.js";
 import { generateWebflow } from "./generators/webflow.js";
+import { reuseCounts } from "./sync.js";
 import { componentManifest, variablesManifest } from "./generators/webflow-manifest.js";
 import { motionEsm, motionDts, motionGlobal, webflowFooterCode, gsapCdnTags } from "./runtime/build-runtime.js";
 import { renderGallery } from "./gallery/template.js";
@@ -129,8 +130,8 @@ export function writeFiles(dir, files) {
   }
 }
 
-export async function buildProject({ dev = false, out = join(ROOT, "dist"), log = console.log } = {}) {
-  const config = await loadConfig();
+export async function buildProject({ dev = false, out = join(ROOT, "dist"), log = console.log, configPath } = {}) {
+  const config = await loadConfig(configPath);
   const frameworks = await loadFrameworks();
   const specs = await loadComponents();
   rmSync(out, { recursive: true, force: true });
@@ -154,6 +155,12 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
         css: componentCss(s, r, ctx),
         vanilla: generateVanilla(s, ctx, r),
       };
+    }
+    if (config.webflow?.styles) {
+      for (const spec of specs) {
+        const { reused, fresh } = reuseCounts(generateWebflow(spec, ctx).payload, config.webflow.styles);
+        log(`  ${spec.id.padEnd(16)} reused ${reused} / new ${fresh}`);
+      }
     }
     log(`✓ ${name.padEnd(14)} ${config.targets.join(", ")}`);
   }

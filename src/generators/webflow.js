@@ -3,6 +3,7 @@
 // per breakpoint and only the differences are written to smaller breakpoints.
 import { randomUUID } from "node:crypto";
 import { resolveComponent, motionAttrs, defaultsOf, nodeVisible, defaultSelection, nodeClasses, mapButtonVariant } from "../core/resolve.js";
+import { webflowOrder } from "../core/webflow-order.js";
 import { staticRef } from "./markup.js";
 
 const TYPE = {
@@ -19,17 +20,45 @@ const diff = (next, prev) => Object.fromEntries(Object.entries(next).filter(([k,
 
 export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx), options = {}) {
   const { tokens } = ctx;
-  const toStyleLess = (obj) => Object.entries(obj).map(([k, v]) => `${k}: ${tokens.literal(v)};`).join(" ");
+  const fonts = ctx.config.webflow?.fonts || {};
+  const synced = ctx.config.webflow?.styles || {};
+  const cssValue = (value) => (value && typeof value === "object" && value.id ? `@var_${value.id}` : tokens.literal(value));
+  const withoutUnmappedFont = (props) => {
+    const next = {};
+    for (const [key, value] of Object.entries(props || {})) {
+      if (key !== "font-family") {
+        next[key] = value;
+        continue;
+      }
+      const token = String(value).match(/^token\(([\w-]+)\)$/)?.[1];
+      if (token && fonts[token]) next[key] = fonts[token];
+    }
+    return next;
+  };
+  const toStyleLess = (props, ordered) =>
+    Object.entries(ordered ? webflowOrder(props) : props).map(([key, value]) => `${key}: ${cssValue(value)};`).join(" ");
   const breakpointStyles = (style = { base: {} }) => {
-    const mobile = { ...style.base };
-    const tablet = { ...mobile, ...(style.md || {}) };
-    const desktop = { ...tablet, ...(style.lg || {}) };
+    const mobileRaw = { ...(style.base || {}) };
+    const tabletRaw = { ...mobileRaw, ...(style.md || {}) };
+    const desktopRaw = { ...tabletRaw, ...(style.lg || {}) };
+    const mobile = withoutUnmappedFont(mobileRaw);
+    const tablet = withoutUnmappedFont(tabletRaw);
+    const desktop = withoutUnmappedFont(desktopRaw);
     const variants = {};
     const medium = diff(tablet, desktop);
     const small = diff(mobile, tablet);
-    if (Object.keys(medium).length) variants.medium = { styleLess: toStyleLess(medium) };
-    if (Object.keys(small).length) variants.small = { styleLess: toStyleLess(small) };
-    return { styleLess: toStyleLess(desktop), variants };
+    if (Object.keys(medium).length) variants.medium = { styleLess: toStyleLess(medium, true) };
+    if (Object.keys(small).length) variants.small = { styleLess: toStyleLess(small, true) };
+    return { styleLess: toStyleLess(desktop, true), variants };
+  };
+  const storedStyles = (stored) => {
+    const variants = {};
+    for (const breakpoint of ["medium", "small", "tiny"]) {
+      if (stored[breakpoint] && Object.keys(stored[breakpoint]).length) {
+        variants[breakpoint] = { styleLess: toStyleLess(stored[breakpoint], false) };
+      }
+    }
+    return { styleLess: toStyleLess(stored.main || {}, false), variants };
   };
   const defaults = { ...defaultsOf(spec), ...(options.values || {}) };
   const selection = { ...defaultSelection(spec), ...(options.selection || {}) };
@@ -39,37 +68,26 @@ export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx
   const chainId = new Map();
   const ensureChain = (chain, style) => {
     const key = chain.join(".");
+    const stored = synced[key];
     if (chainId.has(key)) {
-      if (style) Object.assign(styles.find((s) => s._id === chainId.get(key)), breakpointStyles(style));
+      if (!stored && style) Object.assign(styles.find((s) => s._id === chainId.get(key)), breakpointStyles(style));
       return chainId.get(key);
     }
     const parentId = chain.length > 1 ? ensureChain(chain.slice(0, -1)) : null;
     const s = {
       _id: randomUUID(), fake: false, type: "class", name: chain.at(-1), namespace: "",
-      comb: chain.length > 1 ? "&" : "", ...breakpointStyles(style), children: [], selector: null,
+      comb: chain.length > 1 ? "&" : "", ...(stored ? storedStyles(stored) : breakpointStyles(style)), children: [], selector: null,
     };
     styles.push(s);
     chainId.set(key, s._id);
     if (parentId) styles.find((p) => p._id === parentId).children.push(s._id);
     return s._id;
   };
-  // Only button variants this component actually uses.
-  const usedChains = new Set();
-  for (const [name, p] of Object.entries(spec.props)) {
-    if (p.type === "buttons") {
-      for (const b of defaults[name] || []) usedChains.add(resolved.buttonChains[mapButtonVariant(resolved, selection, b.variant)].join("."));
-    }
-  }
-  for (const r of resolved.rules) {
-    if (r.kind === "button-variant" && !usedChains.has(r.classes.join("."))) continue;
-    ensureChain(r.classes, r.style);
-  }
-  const variantStyle = (base, mod) => resolved.rules.find((r) => r.kind === "variant" && r.classes[0] === base && r.classes[1] === mod)?.style;
+  // Styles are created only for chains a pasted element actually uses.
+  const byChain = new Map(resolved.rules.map((rule) => [rule.classes.join("."), rule.style]));
+  const styleFor = (chain) => byChain.get(chain.join(".")) || (chain.length > 2 ? byChain.get(`${chain[0]}.${chain.at(-1)}`) : undefined);
   const classIds = (chain) => {
-    for (let i = 0; i < chain.length; i++) {
-      const part = chain.slice(0, i + 1);
-      ensureChain(part, i === 0 ? undefined : variantStyle(chain[0], part[i]));
-    }
+    for (let i = 0; i < chain.length; i++) ensureChain(chain.slice(0, i + 1), styleFor(chain.slice(0, i + 1)));
     return chain.map((_, i) => chainId.get(chain.slice(0, i + 1).join(".")));
   };
 
