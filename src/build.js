@@ -6,6 +6,7 @@ import { resolveComponent, usesRuntime } from "./core/resolve.js";
 import { sharedCss } from "./core/css.js";
 import { generateReact, generateAstro, generateHtml, generateVanilla, componentCss, pascal } from "./generators/code.js";
 import { generateWebflow } from "./generators/webflow.js";
+import { componentManifest, variablesManifest } from "./generators/webflow-manifest.js";
 import { motionEsm, motionDts, motionGlobal, webflowFooterCode, gsapCdnTags } from "./runtime/build-runtime.js";
 import { renderGallery } from "./gallery/template.js";
 
@@ -87,7 +88,12 @@ ${specs.map((_, i) => `mount${i}("#app");`).join("\n")}
     );
   }
   if (target === "webflow") {
-    for (const s of specs) files[`${s.id}.json`] = JSON.stringify(generateWebflow(s, ctx, resolved.get(s.id)), null, 2);
+    for (const s of specs) {
+      const resolvedSpec = resolved.get(s.id);
+      files[`${s.id}.json`] = JSON.stringify(generateWebflow(s, ctx, resolvedSpec), null, 2);
+      files[`${s.id}.component.json`] = JSON.stringify(componentManifest(s, ctx, resolvedSpec), null, 2);
+    }
+    files["variables.json"] = JSON.stringify(variablesManifest(ctx), null, 2);
     if (specs.some(usesRuntime)) files["footer-code.html"] = webflowFooterCode();
   }
   return files;

@@ -6,6 +6,7 @@ import { validateSpec } from "../src/core/validate.js";
 import { resolveComponent, allSelections, selectionKey } from "../src/core/resolve.js";
 import { componentCss, generateReact, generateAstro, generateHtml, generateVanilla } from "../src/generators/code.js";
 import { generateWebflow } from "../src/generators/webflow.js";
+import { componentManifest, variablesManifest } from "../src/generators/webflow-manifest.js";
 import { renderMarkup } from "../src/generators/markup.js";
 
 const config = await loadConfig();
@@ -224,6 +225,48 @@ test("theme helper: palettes, base styles, and button remaps agree", async () =>
   assert.equal(border()["border-top-color"], "token(line)");
   assert.equal(inset0.top, "0");
   assert.equal(mono("token(ink-muted)")["font-family"], "token(font-mono)");
+});
+
+test("webflow manifest covers every prop and variant option", () => {
+  const ctx = createContext(config, frameworks["client-first"]);
+  for (const spec of specs) {
+    const manifest = componentManifest(spec, ctx);
+    const covered = new Set([...manifest.props.map((prop) => prop.prop), ...manifest.unsupported.map((prop) => prop.prop)]);
+    for (const name of Object.keys(spec.props)) assert.ok(covered.has(name), `${spec.id} ${name}`);
+    for (const item of manifest.unsupported) assert.match(item.note, /CMS Collection List/);
+    for (const [group, def] of Object.entries(spec.variants || {})) {
+      for (const option of Object.keys(def.options)) {
+        assert.ok(manifest.variants.some((entry) => entry.group === group && entry.option === option), `${spec.id} ${group}=${option}`);
+      }
+    }
+  }
+  const spec = specs.find((item) => item.id === "features-12");
+  const manifest = componentManifest(spec, ctx);
+  const covered = new Set([...manifest.props.map((prop) => prop.prop), ...manifest.unsupported.map((prop) => prop.prop)]);
+  for (const name of Object.keys(spec.props)) assert.ok(covered.has(name), name);
+  assert.ok(manifest.unsupported.some((item) => item.prop === "features" && /CMS Collection List/.test(item.note)));
+  for (const [group, def] of Object.entries(spec.variants)) {
+    for (const option of Object.keys(def.options)) {
+      assert.ok(manifest.variants.some((item) => item.group === group && item.option === option), `${group}=${option}`);
+    }
+  }
+  const dark = manifest.variants.find((item) => item.group === "theme" && item.option === "dark");
+  assert.equal(dark.styles.find((style) => style.breakpoint_id === "main" && style.style_name.startsWith("section_")).properties["background-color"], "#141414");
+  const show = manifest.props.find((prop) => prop.name === "showEyebrow");
+  assert.equal(show.type, "boolean");
+  assert.equal(show.trueLabel, "Show");
+  assert.equal(show.falseLabel, "Hide");
+  assert.ok(manifest.props.some((prop) => prop.prop === "image" && prop.type === "image"));
+  assert.ok(manifest.props.some((prop) => prop.prop === "image" && prop.type === "altText"));
+  assert.ok(manifest.props.some((prop) => prop.prop === "buttons" && prop.type === "textContent"));
+  assert.ok(manifest.props.some((prop) => prop.prop === "buttons" && prop.type === "link"));
+  assert.equal(manifest.props.find((prop) => prop.name === "showButtons").label, "Show Buttons");
+  const variables = variablesManifest(ctx);
+  assert.equal(variables.collection, "Forge");
+  assert.equal(variables.variables.find((item) => item.name === "ink").type, "Color");
+  assert.equal(variables.variables.find((item) => item.name === "ink-2").value, "#22211f");
+  assert.equal(variables.variables.find((item) => item.name === "radius").type, "Size");
+  assert.equal(variables.variables.find((item) => item.name === "font-display").type, "FontFamily");
 });
 
 test("project config: styles: none keeps class names but drops button CSS", () => {
