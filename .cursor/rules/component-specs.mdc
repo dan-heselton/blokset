@@ -16,7 +16,15 @@ Types live in `src/types.d.ts`.
 - `id` kebab-case with a number (`pricing-03`), `prefix` is the id without the dash (`pricing3`).
 - `category`, `name` as "Category / Variant", one-sentence `description`.
 - `props`: content only. Types: `text`, `link`, `image` (`{ src, alt }`, `priority` for above-the-fold),
-  `buttons` (array of `{ title, href, variant }`), `list` (`fields` + `default` array).
+  `boolean` (`{ default: true|false }`), `buttons` (array of `{ title, href, variant }`), `list`
+  (`fields` + `default` array).
+- Every image is an image prop with real alt text. Every optional region (eyebrow, buttons, a card,
+  a logo, a background) has a boolean prop and `if: "showX"` on the element — never on the section
+  root or on a list's item template.
+- Every component has a `theme` group from `themeVariant()` in `components/_lib/themes.js`, plus the
+  layout groups the design needs (`align`, `size`, `columns`, …). Write base colors with `themeBase()`
+  so the default option and the variant stay the same colors. A photo hero can use layout groups
+  (`align`, `overlay`, `height`) instead of a color theme.
 - `tree`: root is always `{ role: "section", style, children }`.
 
 ## Structure: always use roles for layout wrappers

@@ -1,11 +1,15 @@
 // Bento grid: one large image card, an accent stat card, a dark note card and a wide tag card.
 // 1 column on mobile, 2 on tablet, 3 on desktop with the image card spanning 2×2.
-const round = (r) => ({
-  "border-top-left-radius": r, "border-top-right-radius": r, "border-bottom-left-radius": r, "border-bottom-right-radius": r,
-});
-const cardPad = { base: { "padding-top": "1.5rem", "padding-bottom": "1.5rem", "padding-left": "1.5rem", "padding-right": "1.5rem" } };
-const cardPadLg = { "padding-top": "2rem", "padding-bottom": "2rem", "padding-left": "2rem", "padding-right": "2rem" };
-const label = (color) => ({ base: { "font-family": "token(font-mono)", "font-size": "0.75rem", "letter-spacing": "0.08em", "text-transform": "uppercase", color } });
+import { border, mono, pad, radius, themeBase, themeVariant } from "./_lib/themes.js";
+
+const paint = themeBase("light", { "background-color": "bg", color: "fg" });
+const muted = themeBase("light", { color: "muted" }).color;
+const card = themeBase("light", { "background-color": "card" })["background-color"];
+const panel = themeBase("light", { "background-color": "panel" })["background-color"];
+const line = themeBase("light", { color: "line" }).color;
+const cardPad = pad("1.5rem");
+const cardPadLg = pad("2rem");
+const label = (color) => ({ ...mono(color), "font-size": "0.75rem" });
 
 /** @type {import("../src/types").ComponentSpec} */
 export default {
@@ -17,23 +21,86 @@ export default {
 
   props: {
     heading: { type: "text", default: "Everything a small team needs to ship" },
+    showDescription: { type: "boolean", default: true, description: "Show the header description." },
     description: { type: "text", default: "Design, build and motion under one roof, delivered in the stack your team already knows." },
     featureLabel: { type: "text", default: "Design systems" },
     featureTitle: { type: "text", default: "Components your editors can't break" },
     featureText: { type: "text", default: "Every section is built as a reusable, documented component with sensible guardrails." },
-    featureImage: { type: "image", default: { src: "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=1600&q=80", alt: "" } },
+    featureImage: {
+      type: "image",
+      description: "Photograph filling the large feature card.",
+      default: { src: "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=1600&q=80", alt: "Sunlit room with a wooden chair and pale walls" },
+    },
+    showStat: { type: "boolean", default: true, description: "Show the stat card." },
     statLabel: { type: "text", default: "Lighthouse" },
     statValue: { type: "text", default: "98" },
     statText: { type: "text", default: "Average performance score across launches this year." },
+    showNote: { type: "boolean", default: true, description: "Show the note card." },
     noteLabel: { type: "text", default: "Process" },
     noteText: { type: "text", default: "Weekly previews, no surprise invoices, and a launch checklist we actually follow." },
     noteLinkLabel: { type: "text", default: "How we work →" },
     noteHref: { type: "link", default: "#" },
+    showTags: { type: "boolean", default: true, description: "Show the tag card." },
     tagsTitle: { type: "text", default: "Built with" },
     tags: {
       type: "list",
       fields: { label: "text" },
       default: [{ label: "Webflow" }, { label: "Astro" }, { label: "React" }, { label: "Sanity" }, { label: "GSAP" }, { label: "Figma" }, { label: "Client-First" }],
+    },
+  },
+
+  variants: {
+    theme: themeVariant({
+      default: "light",
+      options: ["light", "dark"],
+      map: {
+        section: { "background-color": "bg", color: "fg" },
+        description: { color: "muted" },
+        "card-note": { "background-color": "card" },
+        "card-tags": { "background-color": "panel" },
+        "card-stat": {
+          "border-top-color": "line",
+          "border-right-color": "line",
+          "border-bottom-color": "line",
+          "border-left-color": "line",
+        },
+        tag: {
+          "border-top-color": "line",
+          "border-right-color": "line",
+          "border-bottom-color": "line",
+          "border-left-color": "line",
+        },
+      },
+    }),
+    statStyle: {
+      label: "Stat card",
+      default: "accent-card",
+      options: {
+        "accent-card": null,
+        "ink-card": {
+          label: "Ink card",
+          styles: {
+            "card-stat": { base: { "background-color": "token(ink-2)", color: "token(surface)" } },
+            "stat-label": { base: { color: "token(surface-muted)" } },
+          },
+        },
+        "outline-card": {
+          label: "Outline card",
+          styles: {
+            "card-stat": {
+              base: {
+                "background-color": "transparent",
+                color: "inherit",
+                "border-top-width": "1px",
+                "border-right-width": "1px",
+                "border-bottom-width": "1px",
+                "border-left-width": "1px",
+              },
+            },
+            "stat-label": { base: { color: "inherit" } },
+          },
+        },
+      },
     },
   },
 
@@ -44,7 +111,7 @@ export default {
 
   tree: {
     role: "section",
-    style: { base: { "background-color": "token(surface)", color: "token(ink)" } },
+    style: { base: paint },
     children: [
       { role: "gutter", children: [{ role: "container", size: "large", children: [{ role: "section-padding", size: "large", children: [
         {
@@ -66,7 +133,7 @@ export default {
                     lg: { "font-size": "3.75rem" },
                   },
                 },
-                { tag: "p", key: "description", bind: "description", style: { base: { "margin-top": "0", "margin-bottom": "0", "max-width": "24rem", "font-size": "1.0625rem", "line-height": "1.6", color: "token(ink-muted)" } } },
+                { tag: "p", key: "description", bind: "description", if: "showDescription", style: { base: { "margin-top": "0", "margin-bottom": "0", "max-width": "24rem", "font-size": "1.0625rem", "line-height": "1.6", color: muted } } },
               ],
             },
             {
@@ -80,7 +147,7 @@ export default {
                 {
                   tag: "div", key: "card-feature",
                   style: {
-                    base: { position: "relative", overflow: "hidden", display: "flex", "flex-direction": "column", "justify-content": "flex-end", "min-height": "26rem", "grid-column-start": "span 1", "grid-column-end": "span 1", "grid-row-start": "span 1", "grid-row-end": "span 1", color: "token(surface)", ...round("token(radius-card)"), ...cardPad.base },
+                    base: { position: "relative", overflow: "hidden", display: "flex", "flex-direction": "column", "justify-content": "flex-end", "min-height": "26rem", "grid-column-start": "span 1", "grid-column-end": "span 1", "grid-row-start": "span 1", "grid-row-end": "span 1", color: "token(surface)", ...radius("token(radius-card)"), ...cardPad },
                     md: { "grid-column-start": "span 2", "grid-column-end": "span 2" },
                     lg: { "grid-row-start": "span 2", "grid-row-end": "span 2", ...cardPadLg },
                   },
@@ -97,7 +164,7 @@ export default {
                       tag: "div", key: "feature-body",
                       style: { base: { position: "relative", "z-index": "1", "max-width": "30rem" } },
                       children: [
-                        { tag: "div", key: "feature-label", bind: "featureLabel", style: { base: { ...label("token(surface-muted)").base, "margin-bottom": "0.75rem" } } },
+                        { tag: "div", key: "feature-label", bind: "featureLabel", style: { base: { ...label("token(surface-muted)"), "margin-bottom": "0.75rem" } } },
                         { tag: "h3", key: "feature-title", bind: "featureTitle", style: { base: { "margin-top": "0", "margin-bottom": "0.75rem", "font-family": "token(font-display)", "font-size": "1.875rem", "line-height": "1.1", "font-weight": "600", "letter-spacing": "-0.02em" }, lg: { "font-size": "2.5rem" } } },
                         { tag: "p", key: "feature-text", bind: "featureText", style: { base: { "margin-top": "0", "margin-bottom": "0", "font-size": "1rem", "line-height": "1.55", color: "token(surface-muted)" } } },
                       ],
@@ -105,13 +172,13 @@ export default {
                   ],
                 },
                 {
-                  tag: "div", key: "card-stat",
+                  tag: "div", key: "card-stat", if: "showStat",
                   style: {
-                    base: { display: "flex", "flex-direction": "column", "justify-content": "space-between", "row-gap": "2rem", "min-height": "16rem", "background-color": "token(accent)", color: "token(ink)", ...round("token(radius-card)"), ...cardPad.base },
+                    base: { display: "flex", "flex-direction": "column", "justify-content": "space-between", "row-gap": "2rem", "min-height": "16rem", "background-color": "token(accent)", color: "token(ink)", ...radius("token(radius-card)"), ...cardPad, ...border(line, "0px") },
                     lg: cardPadLg,
                   },
                   children: [
-                    { tag: "div", key: "stat-label", bind: "statLabel", style: label("token(ink)") },
+                    { tag: "div", key: "stat-label", bind: "statLabel", style: { base: label("token(ink)") } },
                     {
                       tag: "div", key: "stat-body",
                       children: [
@@ -122,21 +189,21 @@ export default {
                   ],
                 },
                 {
-                  tag: "div", key: "card-note",
+                  tag: "div", key: "card-note", if: "showNote",
                   style: {
-                    base: { display: "flex", "flex-direction": "column", "justify-content": "space-between", "row-gap": "2rem", "min-height": "16rem", "background-color": "token(ink)", color: "token(surface)", ...round("token(radius-card)"), ...cardPad.base },
+                    base: { display: "flex", "flex-direction": "column", "justify-content": "space-between", "row-gap": "2rem", "min-height": "16rem", "background-color": card, color: "token(surface)", ...radius("token(radius-card)"), ...cardPad },
                     lg: cardPadLg,
                   },
                   children: [
-                    { tag: "div", key: "note-label", bind: "noteLabel", style: label("token(surface-muted)") },
+                    { tag: "div", key: "note-label", bind: "noteLabel", style: { base: label("token(surface-muted)") } },
                     { tag: "p", key: "note-text", bind: "noteText", style: { base: { "margin-top": "0", "margin-bottom": "0", "font-family": "token(font-display)", "font-size": "1.375rem", "line-height": "1.3", "font-weight": "500", "letter-spacing": "-0.01em" } } },
                     { tag: "a", key: "note-link", href: "noteHref", bind: "noteLinkLabel", style: { base: { color: "token(surface)", "font-family": "token(font-mono)", "font-size": "0.875rem", "text-decoration": "underline", "text-underline-offset": "0.3em" } } },
                   ],
                 },
                 {
-                  tag: "div", key: "card-tags",
+                  tag: "div", key: "card-tags", if: "showTags",
                   style: {
-                    base: { display: "flex", "flex-direction": "column", "align-items": "flex-start", "justify-content": "flex-start", "row-gap": "1.25rem", "column-gap": "2rem", "grid-column-start": "span 1", "grid-column-end": "span 1", "background-color": "token(surface-2)", ...round("token(radius-card)"), ...cardPad.base },
+                    base: { display: "flex", "flex-direction": "column", "align-items": "flex-start", "justify-content": "flex-start", "row-gap": "1.25rem", "column-gap": "2rem", "grid-column-start": "span 1", "grid-column-end": "span 1", "background-color": panel, ...radius("token(radius-card)"), ...cardPad },
                     md: { "grid-column-start": "span 2", "grid-column-end": "span 2" },
                     lg: { "flex-direction": "row", "align-items": "center", "justify-content": "space-between", "grid-column-start": "span 3", "grid-column-end": "span 3", ...cardPadLg },
                   },
@@ -148,7 +215,7 @@ export default {
                       children: [
                         {
                           tag: "div", key: "tag", bind: "item.label",
-                          style: { base: { "padding-top": "0.5rem", "padding-bottom": "0.5rem", "padding-left": "0.875rem", "padding-right": "0.875rem", "border-top-width": "1px", "border-bottom-width": "1px", "border-left-width": "1px", "border-right-width": "1px", "border-top-style": "solid", "border-bottom-style": "solid", "border-left-style": "solid", "border-right-style": "solid", "border-top-color": "token(line)", "border-bottom-color": "token(line)", "border-left-color": "token(line)", "border-right-color": "token(line)", ...round("999px"), "font-family": "token(font-mono)", "font-size": "0.8125rem", "line-height": "1.2" } },
+                          style: { base: { "padding-top": "0.5rem", "padding-bottom": "0.5rem", "padding-left": "0.875rem", "padding-right": "0.875rem", ...border(line), ...radius("999px"), "font-family": "token(font-mono)", "font-size": "0.8125rem", "line-height": "1.2" } },
                         },
                       ],
                     },
