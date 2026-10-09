@@ -1,0 +1,26 @@
+{
+  "name": "component-forge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "One component spec → React, Astro, HTML/CSS, vanilla JS and Webflow, in any class framework.",
+  "bin": { "forge": "./src/cli.js" },
+  "scripts": {
+    "dev": "node src/cli.js dev",
+    "build": "node src/cli.js build",
+    "list": "node src/cli.js list",
+    "add": "node src/cli.js add",
+    "test": "node --test tests/*.test.js",
+    "typecheck": "node src/cli.js build && tsc -p tsconfig.json",
+    "check": "npm run test && npm run typecheck"
+  },
+  "dependencies": {
+    "gsap": "^3.12.5"
+  },
+  "devDependencies": {
+    "@astrojs/compiler": "^2.10.3",
+    "@types/react": "^18.3.12",
+    "typescript": "^5.6.3"
+  },
+  "engines": { "node": ">=20" }
+}

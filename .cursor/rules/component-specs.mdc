@@ -1,0 +1,58 @@
+---
+description: How to write or edit a Component Forge spec in components/
+globs: components/**/*.js
+alwaysApply: false
+---
+
+# Writing component specs
+
+A component is ONE file in `components/<id>.js` that default-exports a spec. Every output
+(React, Astro, HTML/CSS, vanilla JS, Webflow paste) is generated from it. Never hand-edit `dist/`.
+
+Start every spec with `/** @type {import("../src/types").ComponentSpec} */` for type checking.
+Types live in `src/types.d.ts`.
+
+## Shape
+- `id` kebab-case with a number (`pricing-03`), `prefix` is the id without the dash (`pricing3`).
+- `category`, `name` as "Category / Variant", one-sentence `description`.
+- `props`: content only. Types: `text`, `link`, `image` (`{ src, alt }`, `priority` for above-the-fold),
+  `buttons` (array of `{ title, href, variant }`), `list` (`fields` + `default` array).
+- `tree`: root is always `{ role: "section", style, children }`.
+
+## Structure: always use roles for layout wrappers
+```js
+{ role: "gutter", children: [{ role: "container", size: "large", children: [
+  { role: "section-padding", size: "large", children: [ { tag: "div", key: "component", ... } ] }
+] }] }
+```
+Roles become framework classes (Client-First `padding-global` etc.). Never style a role node other
+than the section. Full-bleed parts (marquees) can sit outside `gutter` but inside `section-padding`.
+
+## Elements
+- Tags: `div`, `h1`–`h4`, `p`, `a`, `img`. One `h1` only in heroes; sections use `h2`, items `h3`.
+- Every element has a unique kebab-case `key`. The class becomes `prefix_key` (Client-First).
+- Content comes from `bind`: a prop name, `item.<field>` inside a list, or `@index` (01, 02…).
+  `text` is only for non-editable glyphs like "✳". `a` needs `href` (prop, `item.field`, or literal).
+- `repeat: "<prop>"` on a container: for `buttons` it has no children; for `list` exactly one child
+  (the item template). No nested lists.
+- `decorative: true` for purely visual elements (adds aria-hidden).
+
+## Styles (validator enforces these)
+- Mobile-first `{ base, md, lg }` (md ≥768, lg ≥992).
+- Longhand only: `padding-top`, `border-top-left-radius`, `grid-column-start`… never `padding`,
+  `border`, `gap`, `flex`, `inset`, `background`.
+- Any property set at `md`/`lg` must also exist in `base` (Webflow is desktop-first).
+- Colors, fonts and radii use tokens: `"token(ink)"`. Available tokens: `src/core/tokens.js`.
+  Add a token there rather than hard-coding a brand color.
+- Prefer flex; use grid only for real 2D layouts. Keep CSS Webflow-compatible (no ::before, no
+  keyframes, no selectors).
+
+## Motion and behaviour
+- `motion.enter` (staggered header entrance), `motion.reveal` (list items), `motion.scroll` (parallax).
+- Runtime behaviours via `attrs`: `data-forge-marquee` (+ `data-forge-speed`), `data-forge-count`,
+  `data-forge-split="words"`, `data-forge-hover-reveal` > `data-forge-hover-row` > `data-forge-hover-media`.
+  New behaviours go in `src/runtime/motion-core.js` and must respect reduced motion.
+
+## Check your work
+`npm run dev` (gallery with live reload) and `npm run check` (tests + TypeScript). Look at the
+component at 390px and 1440px.
