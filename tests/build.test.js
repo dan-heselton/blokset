@@ -6,6 +6,7 @@ import { validateSpec } from "../src/core/validate.js";
 import { resolveComponent } from "../src/core/resolve.js";
 import { generateReact, generateAstro, generateHtml, generateVanilla } from "../src/generators/code.js";
 import { generateWebflow } from "../src/generators/webflow.js";
+import { renderMarkup } from "../src/generators/markup.js";
 
 const config = await loadConfig();
 const frameworks = await loadFrameworks();
@@ -77,6 +78,49 @@ test("project config: tokens can map onto project CSS variables", () => {
   assert.ok(css.includes("token(ink)"));
   assert.ok(ctx.tokens.css("token(ink)") === "var(--color-ink)");
   assert.ok(JSON.stringify(generateWebflow(spec, ctx)).includes("#000"));
+});
+
+test("boolean if: validator, static omission, and dynamic wrappers", () => {
+  const spec = {
+    id: "toggle", prefix: "toggle", name: "Toggle", category: "x", description: "",
+    props: {
+      show: { type: "boolean", default: false },
+      hide: { type: "boolean", default: true },
+      label: { type: "text", default: "Hi" },
+      items: { type: "list", fields: { title: "text" }, default: [{ title: "One" }] },
+    },
+    tree: {
+      role: "section",
+      children: [
+        { tag: "p", key: "label", bind: "label", if: "show" },
+        { tag: "p", key: "other", bind: "label", if: "!hide" },
+        {
+          tag: "div", key: "list", repeat: "items",
+          children: [{ tag: "div", key: "item", children: [{ tag: "p", key: "item-title", bind: "item.title", if: "show" }] }],
+        },
+      ],
+    },
+  };
+  assert.deepEqual(validateSpec(spec), []);
+  const onRoot = { ...spec, tree: { ...spec.tree, if: "show" } };
+  assert.match(validateSpec(onRoot).join("\n"), /section root/);
+  const onTemplate = {
+    ...spec,
+    tree: { role: "section", children: [{ tag: "div", key: "list", repeat: "items", children: [{ tag: "p", key: "item", bind: "item.title", if: "show" }] }] },
+  };
+  assert.match(validateSpec(onTemplate).join("\n"), /item template/);
+  const badIf = { ...spec, tree: { role: "section", children: [{ tag: "p", key: "label", bind: "label", if: "label" }] } };
+  assert.match(validateSpec(badIf).join("\n"), /boolean prop/);
+
+  const ctx = createContext(config, frameworks["client-first"]);
+  const resolved = resolveComponent(spec, ctx);
+  assert.doesNotMatch(generateHtml(spec, ctx, resolved), />Hi</);
+  assert.match(renderMarkup(spec, resolved, "static", 0, { values: { show: true, hide: false, label: "Hi", items: spec.props.items.default } }), />Hi</);
+  assert.match(generateReact(spec, ctx, resolved), /\{show && \(/);
+  assert.match(generateReact(spec, ctx, resolved), /\{!hide && \(/);
+  assert.match(generateVanilla(spec, ctx, resolved), /\$\{show \? `/);
+  assert.equal(JSON.stringify(generateWebflow(spec, ctx, resolved)).includes("Hi"), false);
+  assert.equal(JSON.stringify(generateWebflow(spec, ctx, resolved, { values: { show: true, hide: true, label: "Hi", items: [] } })).includes("Hi"), true);
 });
 
 test("project config: styles: none keeps class names but drops button CSS", () => {

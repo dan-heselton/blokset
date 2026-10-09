@@ -13,7 +13,7 @@ const VARIANTS = Object.keys(buttonPrimitive.variants);
 const FIELD_TS = { text: "string", link: "string", image: "ImageProps" };
 function tsType(p) {
   if (p.type === "list") return `Array<{ ${Object.entries(p.fields).map(([f, t]) => `${f}: ${FIELD_TS[t]}`).join("; ")} }>`;
-  return { text: "string", link: "string", image: "ImageProps", buttons: "ButtonProps[]" }[p.type];
+  return { text: "string", link: "string", image: "ImageProps", boolean: "boolean", buttons: "ButtonProps[]" }[p.type];
 }
 const propTypes = (spec, optional) =>
   Object.entries(spec.props).map(([n, p]) => `  ${n}${optional ? "?" : ""}: ${tsType(p)};`).join("\n");

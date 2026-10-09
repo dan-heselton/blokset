@@ -52,6 +52,7 @@ export function resolveComponent(spec, ctx) {
       repeat: n.repeat,
       decorative: n.decorative,
       attrs: n.attrs,
+      if: n.if,
       children: (n.children || []).map(toNode),
     };
   };
@@ -135,3 +136,12 @@ export function usesRuntime(spec) {
 }
 
 export const defaultsOf = (spec) => Object.fromEntries(Object.entries(spec.props).map(([k, p]) => [k, p.default]));
+
+/** Whether a node should render for these prop values. `if` is a boolean prop, or "!name" to invert. */
+export function nodeVisible(node, values = {}) {
+  if (!node?.if) return true;
+  const invert = String(node.if).startsWith("!");
+  const name = invert ? String(node.if).slice(1) : String(node.if);
+  const on = !!values[name];
+  return invert ? !on : on;
+}

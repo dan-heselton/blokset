@@ -20,6 +20,7 @@ export type PropSpec =
   | { type: "text"; default: string; description?: string }
   | { type: "link"; default: string; description?: string }
   | { type: "image"; default: ImageValue; priority?: boolean; description?: string }
+  | { type: "boolean"; default: boolean; description?: string }
   | { type: "buttons"; default: ButtonItem[]; max?: number; description?: string }
   | { type: "list"; fields: Record<string, FieldType>; default: Record<string, any>[]; description?: string };
 
@@ -30,6 +31,8 @@ export interface RoleNode {
   size?: "small" | "medium" | "large";
   style?: ResponsiveStyle; // only meaningful on role: "section"
   attrs?: Record<string, string>;
+  /** Boolean prop name, or "!name" to invert. Omitted when the prop is true. */
+  if?: string;
   children?: SpecNode[];
 }
 
@@ -50,6 +53,8 @@ export interface ElementNode {
   decorative?: boolean;
   /** Extra attributes, e.g. runtime behaviours: { "data-forge-marquee": "" }. */
   attrs?: Record<string, string>;
+  /** Boolean prop name, or "!name" to invert. Omitted when the prop is true. */
+  if?: string;
   children?: SpecNode[];
 }
 

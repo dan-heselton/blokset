@@ -35,8 +35,18 @@ export function validateSpec(spec) {
     else if (kind === "image" && p.type !== "image") err(`${where}: prop "${ref}" is not an image`);
   };
 
-  const walk = (n, fields) => {
+  const checkIf = (n, where, { root = false, itemTemplate = false } = {}) => {
+    if (n.if == null) return;
+    if (root) err(`${where}: "if" is not allowed on the section root`);
+    if (itemTemplate) err(`${where}: "if" is not allowed on a list's item template; put it inside the template`);
+    const name = String(n.if).startsWith("!") ? String(n.if).slice(1) : String(n.if);
+    const prop = spec.props[name];
+    if (!prop || prop.type !== "boolean") err(`${where}: "if" must name a boolean prop`);
+  };
+
+  const walk = (n, fields, { root = false, itemTemplate = false } = {}) => {
     const where = n.key ? `node "${n.key}"` : `role "${n.role}"`;
+    checkIf(n, where, { root, itemTemplate });
     if (n.role) {
       if (!ROLES.has(n.role)) err(`${where}: unknown role`);
     } else {
@@ -58,13 +68,13 @@ export function validateSpec(spec) {
       else if (p.type === "list") {
         if (fields) err(`${where}: nested lists aren't supported`);
         if (n.children?.length !== 1) err(`${where}: a list repeat needs exactly one child (the item template)`);
-        n.children?.forEach((c) => walk(c, p.fields));
+        n.children?.forEach((c) => walk(c, p.fields, { itemTemplate: true }));
         return;
       } else err(`${where}: repeat must point at a buttons or list prop`);
     }
     (n.children || []).forEach((c) => walk(c, fields));
   };
-  walk(spec.tree, null);
+  walk(spec.tree, null, { root: true });
 
   for (const t of ["enter", "reveal", "scroll"]) {
     for (const k of spec.motion?.[t]?.targets || []) if (!keys.has(k)) err(`motion.${t}: unknown key "${k}"`);

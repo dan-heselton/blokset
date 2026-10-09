@@ -3,7 +3,7 @@
 //   astro   → JSX-like Astro template, class
 //   vanilla → JS template literal with ${esc(expressions)}
 //   static  → plain HTML using the spec's default content
-import { motionAttrs, defaultsOf } from "../core/resolve.js";
+import { motionAttrs, defaultsOf, nodeVisible } from "../core/resolve.js";
 
 export const INDEX_EXPR = 'String(index + 1).padStart(2, "0")';
 const ind = (d) => "  ".repeat(d);
@@ -23,8 +23,12 @@ export function staticRef(ref, defaults, scope) {
 
 const isRef = (ref, spec) => ref === "@index" || ref.startsWith("item.") || ref.split(".")[0] in spec.props;
 
-export function renderMarkup(spec, resolved, mode, startDepth = 0) {
-  const defaults = defaultsOf(spec);
+/**
+ * @param {{ selection?: Record<string, string>, values?: Record<string, any> }} [options]
+ * `values` overrides prop defaults for static HTML. `selection` is applied in part 2.
+ */
+export function renderMarkup(spec, resolved, mode, startDepth = 0, options = {}) {
+  const defaults = { ...defaultsOf(spec), ...(options.values || {}) };
   const motion = motionAttrs(spec);
   const jsx = mode === "react" || mode === "astro";
   const classAttr = mode === "react" ? "className" : "class";
@@ -64,14 +68,23 @@ export function renderMarkup(spec, resolved, mode, startDepth = 0) {
     const pad = ind(depth);
     const [tpl] = node.children;
     if (mode === "static") {
-      return defaults[node.repeat].map((item, index) => el(tpl, depth, { item, index }, true)).join("\n");
+      return defaults[node.repeat].map((item, index) => el(tpl, depth, { item, index }, true)).filter((html) => html !== "").join("\n");
     }
     const inner = el(tpl, depth + 1, { dynamic: true }, true);
     if (jsx) return `${pad}{${node.repeat}.map((item, index) => (\n${inner}\n${pad}))}`;
     return `${pad}\${${node.repeat}.map((item, index) => \`\n${inner}\n${pad}\`).join("")}`;
   };
 
+  const wrapIf = (node, depth, body) => {
+    if (!node.if || mode === "static") return body;
+    const pad = ind(depth);
+    const cond = String(node.if).startsWith("!") ? `!${String(node.if).slice(1)}` : node.if;
+    if (jsx) return `${pad}{${cond} && (\n${body}\n${pad})}`;
+    return `${pad}\${${cond} ? \`${body}\` : ""}`;
+  };
+
   function el(node, depth, scope = null, templateRoot = false) {
+    if (mode === "static" && !nodeVisible(node, defaults)) return "";
     const pad = ind(depth);
     let a = ` ${classAttr}="${node.classes.join(" ")}"`;
     if (templateRoot && mode === "react") a += " key={index}";
@@ -86,7 +99,7 @@ export function renderMarkup(spec, resolved, mode, startDepth = 0) {
       a += attr("src", `${node.bind}.src`, scope) + attr("alt", `${node.bind}.alt`, scope, "");
       a += eager ? ` loading="eager" ${mode === "react" ? "fetchPriority" : "fetchpriority"}="high"` : ` loading="lazy"`;
       a += ` decoding="async"`;
-      return `${pad}<img${a}${jsx ? " />" : ">"}`;
+      return wrapIf(node, depth, `${pad}<img${a}${jsx ? " />" : ">"}`);
     }
     if (node.tag === "a" && node.href) {
       a += isRef(node.href, spec) ? attr("href", node.href, scope) : ` href="${escapeHtml(node.href)}"`;
@@ -94,14 +107,15 @@ export function renderMarkup(spec, resolved, mode, startDepth = 0) {
 
     const open = `${pad}<${node.tag}${a}>`;
     const close = `</${node.tag}>`;
-    if (node.bind) return `${open}${text(node.bind, scope)}${close}`;
-    if (node.text !== undefined) return `${open}${literalText(node.text)}${close}`;
+    if (node.bind) return wrapIf(node, depth, `${open}${text(node.bind, scope)}${close}`);
+    if (node.text !== undefined) return wrapIf(node, depth, `${open}${literalText(node.text)}${close}`);
 
     const prop = node.repeat && spec.props[node.repeat];
-    if (prop?.type === "buttons") return `${open}\n${buttons(node.repeat, depth + 1)}\n${pad}${close}`;
-    if (prop?.type === "list") return `${open}\n${list(node, depth + 1)}\n${pad}${close}`;
-    if (!node.children.length) return `${open}${close}`;
-    return `${open}\n${node.children.map((c) => el(c, depth + 1, scope)).join("\n")}\n${pad}${close}`;
+    if (prop?.type === "buttons") return wrapIf(node, depth, `${open}\n${buttons(node.repeat, depth + 1)}\n${pad}${close}`);
+    if (prop?.type === "list") return wrapIf(node, depth, `${open}\n${list(node, depth + 1)}\n${pad}${close}`);
+    const inner = node.children.map((c) => el(c, depth + 1, scope)).filter((html) => html !== "");
+    if (!inner.length) return wrapIf(node, depth, `${open}${close}`);
+    return wrapIf(node, depth, `${open}\n${inner.join("\n")}\n${pad}${close}`);
   }
 
   return el(resolved.tree, startDepth);

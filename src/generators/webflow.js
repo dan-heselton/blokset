@@ -2,7 +2,7 @@
 // classes. Webflow is desktop-first (main → medium → small), so each mobile-first style is resolved
 // per breakpoint and only the differences are written to smaller breakpoints.
 import { randomUUID } from "node:crypto";
-import { resolveComponent, motionAttrs, defaultsOf } from "../core/resolve.js";
+import { resolveComponent, motionAttrs, defaultsOf, nodeVisible } from "../core/resolve.js";
 import { staticRef } from "./markup.js";
 
 const TYPE = {
@@ -17,7 +17,7 @@ const TYPE = {
 
 const diff = (next, prev) => Object.fromEntries(Object.entries(next).filter(([k, v]) => prev[k] !== v));
 
-export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx)) {
+export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx), options = {}) {
   const { tokens } = ctx;
   const toStyleLess = (obj) => Object.entries(obj).map(([k, v]) => `${k}: ${tokens.literal(v)};`).join(" ");
   const breakpointStyles = (style = { base: {} }) => {
@@ -31,7 +31,7 @@ export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx
     if (Object.keys(small).length) variants.small = { styleLess: toStyleLess(small) };
     return { styleLess: toStyleLess(desktop), variants };
   };
-  const defaults = defaultsOf(spec);
+  const defaults = { ...defaultsOf(spec), ...(options.values || {}) };
 
   // ---- Styles: every class chain gets a record; combos are children of their parent chain ----
   const styles = [];
@@ -79,6 +79,7 @@ export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx
     n.href.startsWith("item.") || n.href.split(".")[0] in spec.props ? staticRef(n.href, defaults, scope) : n.href;
 
   function build(n, scope = null) {
+    if (!nodeVisible(n, defaults)) return null;
     const id = randomUUID();
     const base = { _id: id, tag: n.tag, classes: classIds(n.classes), children: [] };
 
@@ -122,9 +123,15 @@ export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx
         el.children.push(bid);
       }
     } else if (prop?.type === "list") {
-      defaults[n.repeat].forEach((item, index) => el.children.push(build(n.children[0], { item, index })));
+      defaults[n.repeat].forEach((item, index) => {
+        const child = build(n.children[0], { item, index });
+        if (child) el.children.push(child);
+      });
     } else {
-      n.children.forEach((c) => el.children.push(build(c, scope)));
+      n.children.forEach((c) => {
+        const child = build(c, scope);
+        if (child) el.children.push(child);
+      });
     }
     nodes.push(el);
     return id;
