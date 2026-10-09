@@ -62,9 +62,86 @@ export function resolveComponent(spec, ctx) {
   if (usesButtons(spec) && buttons.styles !== "none") {
     for (const r of buttonRules(buttons)) addRule(r.classes, r.style, r.kind, { variant: r.variant });
   }
-  const order = { utility: 0, button: 1, "button-variant": 2, component: 3 };
+
+  const byKey = new Map();
+  const index = (specNode, resolvedNode, isRoot) => {
+    if (isRoot) byKey.set("section", resolvedNode);
+    (specNode.children || []).forEach((child, i) => index(child, resolvedNode.children[i], false));
+    if (isRoot) {
+      if (specNode.key && specNode.key !== "section" && !byKey.has(specNode.key)) byKey.set(specNode.key, resolvedNode);
+    } else if (specNode.key) byKey.set(specNode.key, resolvedNode);
+  };
+  index(spec.tree, tree, true);
+
+  const buttonMaps = {};
+  if (!fw.variantClass && spec.variants && Object.keys(spec.variants).length) {
+    throw new Error(`${fw.name}: framework profile is missing variantClass()`);
+  }
+  for (const [group, def] of Object.entries(spec.variants || {})) {
+    for (const [option, opt] of Object.entries(def.options)) {
+      if (!opt) continue;
+      if (opt.buttons) {
+        buttonMaps[group] ??= {};
+        buttonMaps[group][option] = opt.buttons;
+      }
+      for (const [key, style] of Object.entries(opt.styles || {})) {
+        const node = key === "section" ? tree : byKey.get(key);
+        if (!node) throw new Error(`${spec.id}: variant ${group}.${option} styles unknown key "${key}"`);
+        const elementClass = node.classes[0];
+        const modClass = fw.variantClass({ prefix: spec.prefix, key: node.key, elementClass, group, option });
+        node.mods ??= {};
+        node.mods[group] ??= {};
+        node.mods[group][option] = modClass;
+        addRule([elementClass, modClass], style, "variant", { group, option });
+      }
+    }
+  }
+
+  const order = { utility: 0, button: 1, "button-variant": 2, component: 3, variant: 4 };
   rules.sort((a, b) => order[a.kind] - order[b.kind]);
-  return { tree, rules, buttonChains: buttons.chains };
+  return { tree, rules, buttonChains: buttons.chains, buttonMaps };
+}
+
+export const camel = (name) => name.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
+
+/** `{ theme: "light", align: "left" }` from each group's default. */
+export function defaultSelection(spec) {
+  return Object.fromEntries(Object.entries(spec.variants || {}).map(([group, def]) => [group, def.default]));
+}
+
+/** Every combination of variant options. Specs with no variants yield one empty selection. */
+export function allSelections(spec) {
+  let selections = [{}];
+  for (const [group, def] of Object.entries(spec.variants || {})) {
+    const options = Object.keys(def.options);
+    selections = selections.flatMap((sel) => options.map((option) => ({ ...sel, [group]: option })));
+  }
+  return selections;
+}
+
+/** Stable id for a selection, e.g. `theme=dark|align=left`. */
+export function selectionKey(sel = {}) {
+  return Object.entries(sel).map(([group, option]) => `${group}=${option}`).join("|");
+}
+
+/** Base classes plus the combo class for each selected option that restyles this node. */
+export function nodeClasses(node, sel = {}) {
+  const classes = [...(node.classes || [])];
+  for (const [group, option] of Object.entries(sel)) {
+    const mod = node.mods?.[group]?.[option];
+    if (mod) classes.push(mod);
+  }
+  return classes;
+}
+
+/** Apply each selected option's button remap, in group order. */
+export function mapButtonVariant(resolved, sel, variant) {
+  let next = variant || "primary";
+  for (const [group, option] of Object.entries(sel || {})) {
+    const mapped = resolved.buttonMaps?.[group]?.[option]?.[next];
+    if (mapped) next = mapped;
+  }
+  return next;
 }
 
 export function allUtilities(ctx) {

@@ -3,7 +3,7 @@
 //   astro   → JSX-like Astro template, class
 //   vanilla → JS template literal with ${esc(expressions)}
 //   static  → plain HTML using the spec's default content
-import { motionAttrs, defaultsOf, nodeVisible } from "../core/resolve.js";
+import { motionAttrs, defaultsOf, nodeVisible, defaultSelection, nodeClasses, mapButtonVariant } from "../core/resolve.js";
 
 export const INDEX_EXPR = 'String(index + 1).padStart(2, "0")';
 const ind = (d) => "  ".repeat(d);
@@ -29,6 +29,8 @@ const isRef = (ref, spec) => ref === "@index" || ref.startsWith("item.") || ref.
  */
 export function renderMarkup(spec, resolved, mode, startDepth = 0, options = {}) {
   const defaults = { ...defaultsOf(spec), ...(options.values || {}) };
+  const selection = { ...defaultSelection(spec), ...(options.selection || {}) };
+  const usesMap = !!spec.variants && Object.keys(spec.variants).length > 0;
   const motion = motionAttrs(spec);
   const jsx = mode === "react" || mode === "astro";
   const classAttr = mode === "react" ? "className" : "class";
@@ -47,12 +49,14 @@ export function renderMarkup(spec, resolved, mode, startDepth = 0, options = {})
     return ` ${name}="\${esc(${e})}"`;
   };
 
-  const buttonClassExpr = 'buttonClass[button.variant ?? "primary"] ?? buttonClass.primary';
+  const buttonClassExpr = usesMap
+    ? 'buttonClass[mapButton(button.variant)] ?? buttonClass.primary'
+    : 'buttonClass[button.variant ?? "primary"] ?? buttonClass.primary';
   const buttons = (name, depth) => {
     const pad = ind(depth);
     if (mode === "static") {
       return defaults[name]
-        .map((b) => `${pad}<a href="${escapeHtml(b.href ?? "#")}" class="${resolved.buttonChains[b.variant ?? "primary"].join(" ")}">${escapeHtml(b.title)}</a>`)
+        .map((b) => `${pad}<a href="${escapeHtml(b.href ?? "#")}" class="${resolved.buttonChains[mapButtonVariant(resolved, selection, b.variant)].join(" ")}">${escapeHtml(b.title)}</a>`)
         .join("\n");
     }
     if (mode === "react") {
@@ -86,7 +90,18 @@ export function renderMarkup(spec, resolved, mode, startDepth = 0, options = {})
   function el(node, depth, scope = null, templateRoot = false) {
     if (mode === "static" && !nodeVisible(node, defaults)) return "";
     const pad = ind(depth);
-    let a = ` ${classAttr}="${node.classes.join(" ")}"`;
+    const dynamic = mode !== "static" && node.mods && Object.keys(node.mods).length;
+    let a;
+    if (dynamic) {
+      const base = JSON.stringify(node.classes[0]);
+      const key = JSON.stringify(node.key);
+      if (mode === "react") a = ` className={${base} + mod(${key})}`;
+      else if (mode === "astro") a = ` class={${base} + mod(${key})}`;
+      else a = ` class="${node.classes[0]}\${mod(${key})}"`;
+    } else {
+      const classes = mode === "static" ? nodeClasses(node, selection) : node.classes;
+      a = ` ${classAttr}="${classes.join(" ")}"`;
+    }
     if (templateRoot && mode === "react") a += " key={index}";
     if (node.decorative) a += ` aria-hidden="true"`;
     for (const [k, v] of Object.entries({ ...(motion[node.key] || {}), ...(node.attrs || {}) })) {

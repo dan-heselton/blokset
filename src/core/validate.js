@@ -54,7 +54,10 @@ export function validateSpec(spec) {
       if (!n.key) err(`an element is missing "key"`);
       if (!/^[a-z][a-z0-9-]*$/.test(n.key || "")) err(`${where}: key must be lowercase kebab-case`);
     }
-    if (n.key) { if (keys.has(n.key)) err(`duplicate key "${n.key}"`); keys.add(n.key); }
+    if (n.key && !root) {
+      if (keys.has(n.key)) err(`duplicate key "${n.key}"`);
+      keys.add(n.key);
+    }
     checkStyle(where, n.style);
 
     if (n.tag === "img") { if (!n.bind) err(`${where}: img needs bind`); else checkRef(where, n.bind, fields, "image"); }
@@ -75,6 +78,26 @@ export function validateSpec(spec) {
     (n.children || []).forEach((c) => walk(c, fields));
   };
   walk(spec.tree, null, { root: true });
+  keys.add("section");
+  if (spec.tree.key) keys.add(spec.tree.key);
+
+  const propNames = new Set(Object.keys(spec.props));
+  const optionNames = new Set();
+  const camel = (name) => name.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
+  for (const [group, def] of Object.entries(spec.variants || {})) {
+    if (propNames.has(group) || propNames.has(camel(group))) err(`variant group "${group}" clashes with a prop name`);
+    if (!def?.options || !Object.prototype.hasOwnProperty.call(def.options, def.default)) err(`variant "${group}": default must be an option`);
+    for (const [option, opt] of Object.entries(def?.options || {})) {
+      if (!/^[a-z][a-z0-9-]*$/.test(option)) err(`variant option "${option}" must be kebab-case`);
+      if (optionNames.has(option)) err(`variant option "${option}" is used more than once`);
+      optionNames.add(option);
+      if (opt == null) continue;
+      for (const [key, style] of Object.entries(opt.styles || {})) {
+        if (!keys.has(key)) err(`variant ${group}.${option}: unknown key "${key}"`);
+        checkStyle(`variant ${group}.${option} "${key}"`, style);
+      }
+    }
+  }
 
   for (const t of ["enter", "reveal", "scroll"]) {
     for (const k of spec.motion?.[t]?.targets || []) if (!keys.has(k)) err(`motion.${t}: unknown key "${k}"`);

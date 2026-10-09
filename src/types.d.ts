@@ -69,6 +69,21 @@ export interface MotionSpec {
   scroll?: { preset: "parallax"; targets: string[]; strength: number };
 }
 
+/** One choice inside a variant group. `null` means the base styles, with no combo class. */
+export interface VariantOption {
+  label?: string;
+  /** Style overrides keyed by element key. `"section"` is the root. */
+  styles?: Record<string, ResponsiveStyle>;
+  /** Remap button variants, e.g. `{ dark: "primary" }`. */
+  buttons?: Record<string, string>;
+}
+
+export interface VariantGroup {
+  label?: string;
+  default: string;
+  options: Record<string, VariantOption | null>;
+}
+
 export interface ComponentSpec {
   id: string;
   prefix: string;
@@ -76,6 +91,8 @@ export interface ComponentSpec {
   category: "hero" | "features" | "stats" | "work" | "testimonial" | "cta" | string;
   description: string;
   props: Record<string, PropSpec>;
+  /** Theme, layout, size, and other choices. Option names become combo classes. */
+  variants?: Record<string, VariantGroup>;
   motion?: MotionSpec;
   tree: RoleNode;
 }
@@ -89,6 +106,8 @@ export interface FrameworkProfile {
   roles: Record<"gutter" | "container" | "section-padding", (size: string | undefined, prefix: string) => string | { class: string; style: ResponsiveStyle }>;
   utilities: Record<string, ResponsiveStyle>;
   button: { base: string; modifier: (variant: string) => string };
+  /** Combo class for a variant option on one element. */
+  variantClass?: (args: { prefix: string; key: string; elementClass: string; group: string; option: string }) => string;
 }
 
 export type TokenValue = string | { value: string; css?: string };

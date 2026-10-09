@@ -2,7 +2,7 @@
 //   <target>/forge-shared/{tokens.css, utilities.css, buttons.css, motion.*}
 //   <target>/<Component files>
 import { renderMarkup } from "./markup.js";
-import { resolveComponent, usesRuntime, defaultsOf } from "../core/resolve.js";
+import { resolveComponent, usesRuntime, defaultsOf, camel } from "../core/resolve.js";
 import { rulesToCss } from "../core/css.js";
 import { button as buttonPrimitive } from "../core/primitives.js";
 
@@ -15,8 +15,74 @@ function tsType(p) {
   if (p.type === "list") return `Array<{ ${Object.entries(p.fields).map(([f, t]) => `${f}: ${FIELD_TS[t]}`).join("; ")} }>`;
   return { text: "string", link: "string", image: "ImageProps", boolean: "boolean", buttons: "ButtonProps[]" }[p.type];
 }
-const propTypes = (spec, optional) =>
-  Object.entries(spec.props).map(([n, p]) => `  ${n}${optional ? "?" : ""}: ${tsType(p)};`).join("\n");
+const doc = (text) => (text ? `  /** ${String(text).replace(/\*\//g, "").replace(/\n/g, " ")} */\n` : "");
+const variantIdents = (spec) => Object.entries(spec.variants || {}).map(([group, def]) => ({ group, ident: camel(group), def }));
+const propTypes = (spec, optional) => {
+  const lines = Object.entries(spec.props).map(([n, p]) => `${doc(p.description)}  ${n}${optional ? "?" : ""}: ${tsType(p)};`);
+  for (const { ident, def } of variantIdents(spec)) {
+    const union = Object.keys(def.options).map((option) => JSON.stringify(option)).join(" | ");
+    lines.push(`${doc(def.label)}  ${ident}${optional ? "?" : ""}: ${union};`);
+  }
+  return lines.join("\n");
+};
+const allDefaults = (spec) => ({
+  ...defaultsOf(spec),
+  ...Object.fromEntries(variantIdents(spec).map(({ ident, def }) => [ident, def.default])),
+});
+function variantModsLiteral(resolved) {
+  const mods = {};
+  const walk = (node) => {
+    if (node.mods) {
+      const table = {};
+      for (const options of Object.values(node.mods)) {
+        for (const [option, cls] of Object.entries(options)) table[option] = ` ${cls}`;
+      }
+      if (Object.keys(table).length) mods[node.key] = table;
+    }
+    node.children?.forEach(walk);
+  };
+  walk(resolved.tree);
+  const lines = Object.entries(mods).map(([key, table]) => `  ${JSON.stringify(key)}: ${JSON.stringify(table)}`);
+  return lines.length ? `{\n${lines.join(",\n")}\n}` : "{}";
+}
+function variantPrelude(spec, resolved, typed) {
+  const idents = variantIdents(spec);
+  if (!idents.length) return "";
+  const state = idents.map(({ group, ident }) => `${JSON.stringify(`${group}=`)} + ${ident}`).join(` + ${JSON.stringify("|")} + `);
+  const sums = idents.map(({ ident }) => `(table[${ident}] || "")`).join(" + ");
+  const mapBody = idents
+    .filter(({ group }) => resolved.buttonMaps?.[group])
+    .map(({ group, ident }) => `  { const mapped = buttonMaps[${JSON.stringify(group)}]?.[${ident}]?.[next]; if (mapped) next = mapped; }`)
+    .join("\n");
+  const rec = typed ? ": Record<string, Record<string, string>>" : "";
+  const brec = typed ? ": Record<string, Record<string, Record<string, string>>>" : "";
+  const keyType = typed ? ": string" : "";
+  const argType = typed ? "?: string" : "";
+  return `const variantState = ${state};
+const variantMods${rec} = ${variantModsLiteral(resolved)};
+const buttonMaps${brec} = ${JSON.stringify(resolved.buttonMaps || {})};
+function mod(key${keyType}) {
+  const table = variantMods[key];
+  if (!table) return "";
+  return ${sums || '""'};
+}
+function mapButton(v${argType}) {
+  let next = v || "primary";
+${mapBody}
+  return next;
+}
+`;
+}
+const indent = (code, spaces) => code ? code.replace(/\n$/, "").split("\n").map((line) => (line ? `${" ".repeat(spaces)}${line}` : line)).join("\n") + "\n" : "";
+function withRootClass(markup, runtime) {
+  const next = markup.replace(/^(\s*)<section className=("(?:[^"\\]|\\.)*"|\{[^}]*\})/, (_, pad, cls) => {
+    const expr = cls.startsWith("{") ? cls.slice(1, -1) : cls;
+    return `${pad}<section${runtime ? " ref={ref}" : ""} {...rest} className={[${expr}, className].filter(Boolean).join(" ")}`;
+  });
+  if (next === markup) throw new Error("React output is missing the root section class");
+  return next;
+}
+const namesOf = (spec) => [...Object.keys(spec.props), ...variantIdents(spec).map((item) => item.ident)];
 const SHARED_TYPES = `type ImageProps = { src: string; alt?: string };
 type ButtonProps = { title: string; href?: string; variant?: ${VARIANTS.map((v) => `"${v}"`).join(" | ")} };`;
 const json = (v) => JSON.stringify(v, null, 2);
@@ -24,14 +90,15 @@ const buttonClassMap = (r) => json(Object.fromEntries(Object.entries(r.buttonCha
 
 /** Only this component's own rules; utilities/buttons ship once in forge-shared. */
 export function componentCss(spec, resolved, ctx) {
-  const own = resolved.rules.filter((r) => r.kind === "component");
+  const own = resolved.rules.filter((r) => r.kind === "component" || r.kind === "variant");
   return `/* ${header(spec)} */\n${rulesToCss(own, ctx.tokens)}`;
 }
 
 export function generateReact(spec, ctx, resolved = resolveComponent(spec, ctx)) {
   const Name = pascal(spec.id);
   const runtime = usesRuntime(spec);
-  const markup = renderMarkup(spec, resolved, "react", 2).replace(/^(\s*<section[^>]*?)>/, `$1${runtime ? " ref={ref}" : ""} {...rest}>`);
+  const names = namesOf(spec);
+  const markup = withRootClass(renderMarkup(spec, resolved, "react", 2), runtime);
   return `${runtime ? '"use client";\n' : ""}// ${header(spec)}
 ${runtime ? 'import { useEffect, useRef } from "react";\nimport { initMotion } from "./forge-shared/motion.js";\n' : ""}import "./${spec.id}.css";
 
@@ -45,11 +112,11 @@ export type ${Name}Props = Omit<React.ComponentPropsWithoutRef<"section">, keyof
 
 const buttonClass: Record<string, string> = ${buttonClassMap(resolved)};
 
-export const ${Name}Defaults: Props = ${json(defaultsOf(spec))};
+export const ${Name}Defaults: Props = ${json(allDefaults(spec))};
 
 export function ${Name}(props: ${Name}Props) {
-  const { ${Object.keys(spec.props).join(", ")}, ...rest } = { ...${Name}Defaults, ...props };
-${runtime ? "  const ref = useRef<HTMLElement>(null);\n  useEffect(() => {\n    if (ref.current) initMotion(ref.current);\n  }, []);\n" : ""}  return (
+  const { ${names.join(", ")}${names.length ? ", " : ""}className, ...rest } = { ...${Name}Defaults, ...props };
+${runtime ? "  const ref = useRef<HTMLElement>(null);\n  useEffect(() => {\n    if (ref.current) initMotion(ref.current);\n  }, []);\n" : ""}${indent(variantPrelude(spec, resolved, true), 2)}  return (
 ${markup}
   );
 }
@@ -69,16 +136,17 @@ export interface Props {
 ${propTypes(spec, true)}
 }
 
-const defaults = ${json(defaultsOf(spec))};
-const { ${Object.keys(spec.props).join(", ")} } = { ...defaults, ...Astro.props };
+const defaults = ${json(allDefaults(spec))};
+const { ${namesOf(spec).join(", ")} } = { ...defaults, ...Astro.props };
 const buttonClass: Record<string, string> = ${buttonClassMap(resolved)};
+${variantPrelude(spec, resolved, true)}
 ---
 ${renderMarkup(spec, resolved, "astro")}
 ${usesRuntime(spec) ? '\n<script>\n  import "./forge-shared/motion.js";\n</script>\n' : ""}`;
 }
 
-export function generateHtml(spec, ctx, resolved = resolveComponent(spec, ctx)) {
-  return `<!-- ${header(spec)} -->\n${renderMarkup(spec, resolved, "static")}\n`;
+export function generateHtml(spec, ctx, resolved = resolveComponent(spec, ctx), options = {}) {
+  return `<!-- ${header(spec)} -->\n${renderMarkup(spec, resolved, "static", 0, options)}\n`;
 }
 
 export function generateVanilla(spec, ctx, resolved = resolveComponent(spec, ctx)) {
@@ -91,14 +159,14 @@ export function generateVanilla(spec, ctx, resolved = resolveComponent(spec, ctx
 
 const esc = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-export const defaults = ${json(defaultsOf(spec))};
+export const defaults = ${json(allDefaults(spec))};
 
 const buttonClass = ${buttonClassMap(resolved)};
 
 /** Returns the component's HTML for the given props. */
 export function render(props = {}) {
-  const { ${Object.keys(spec.props).join(", ")} } = { ...defaults, ...props };
-  return \`
+  const { ${namesOf(spec).join(", ")} } = { ...defaults, ...props };
+${indent(variantPrelude(spec, resolved, false), 2)}  return \`
 ${renderMarkup(spec, resolved, "vanilla", 1)}
 \`;
 }

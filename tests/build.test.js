@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { transform } from "@astrojs/compiler";
 import { loadConfig, loadFrameworks, loadComponents, createContext } from "../src/core/config.js";
 import { validateSpec } from "../src/core/validate.js";
-import { resolveComponent } from "../src/core/resolve.js";
-import { generateReact, generateAstro, generateHtml, generateVanilla } from "../src/generators/code.js";
+import { resolveComponent, allSelections, selectionKey } from "../src/core/resolve.js";
+import { componentCss, generateReact, generateAstro, generateHtml, generateVanilla } from "../src/generators/code.js";
 import { generateWebflow } from "../src/generators/webflow.js";
 import { renderMarkup } from "../src/generators/markup.js";
 
@@ -78,6 +78,84 @@ test("project config: tokens can map onto project CSS variables", () => {
   assert.ok(css.includes("token(ink)"));
   assert.ok(ctx.tokens.css("token(ink)") === "var(--color-ink)");
   assert.ok(JSON.stringify(generateWebflow(spec, ctx)).includes("#000"));
+});
+
+test("variants: combo classes, selections, and typed props", async () => {
+  const spec = {
+    id: "box", prefix: "box", name: "Box", category: "x", description: "",
+    props: {
+      heading: { type: "text", default: "Hi", description: "The heading" },
+      buttons: { type: "buttons", default: [{ title: "Go", href: "#", variant: "primary" }] },
+    },
+    variants: {
+      theme: {
+        label: "Color theme",
+        default: "light",
+        options: {
+          light: null,
+          dark: {
+            label: "Dark",
+            styles: {
+              section: { base: { "background-color": "token(ink)" } },
+              heading: { base: { color: "token(surface)" }, md: { color: "token(surface)" } },
+            },
+            buttons: { primary: "dark" },
+          },
+          accent: { styles: { heading: { base: { color: "token(ink)" } } } },
+        },
+      },
+      align: {
+        label: "Alignment",
+        default: "left",
+        options: {
+          left: null,
+          center: { styles: { heading: { base: { "text-align": "center" } } } },
+        },
+      },
+    },
+    tree: {
+      role: "section", key: "section",
+      style: { base: { "background-color": "token(surface)" } },
+      children: [
+        { tag: "h2", key: "heading", bind: "heading", style: { base: { color: "token(ink)" }, md: { color: "token(ink)" } } },
+        { tag: "div", key: "actions", repeat: "buttons" },
+      ],
+    },
+  };
+  assert.deepEqual(validateSpec(spec), []);
+  assert.equal(allSelections(spec).length, 6);
+  assert.equal(selectionKey({ theme: "dark", align: "left" }), "theme=dark|align=left");
+  const dup = { ...spec, variants: { ...spec.variants, tone: { default: "dark", options: { dark: null } } } };
+  assert.match(validateSpec(dup).join("\n"), /used more than once/);
+
+  const ctx = createContext(config, frameworks["client-first"]);
+  const resolved = resolveComponent(spec, ctx);
+  const css = componentCss(spec, resolved, ctx);
+  assert.match(css, /\.box_heading\.is-dark/);
+  assert.match(css, /\.section_box\.is-dark/);
+  assert.doesNotMatch(generateHtml(spec, ctx, resolved), /is-dark/);
+  assert.match(generateHtml(spec, ctx, resolved, { selection: { theme: "dark", align: "center" } }), /class="section_box is-dark"/);
+  assert.match(generateHtml(spec, ctx, resolved, { selection: { theme: "dark", align: "center" } }), /class="box_heading is-dark is-center"/);
+  const react = generateReact(spec, ctx, resolved);
+  assert.match(react, /theme: "light" \| "dark" \| "accent";/);
+  assert.match(react, /The heading/);
+  assert.match(react, /className=\{\["section_box" \+ mod\("section"\), className\]/);
+  assert.match(react, /mod\("heading"\)/);
+  const vanilla = generateVanilla(spec, ctx, resolved);
+  const mod = await import(`data:text/javascript,${encodeURIComponent(vanilla)}`);
+  assert.match(mod.render({ theme: "dark" }), /section_box is-dark/);
+  assert.match(mod.render({ theme: "dark" }), /button is-dark/);
+  const bem = resolveComponent(spec, createContext(config, frameworks.bem));
+  assert.ok(bem.rules.some((rule) => rule.classes.join(".") === "box__heading.box__heading--dark"));
+  const flow = resolveComponent(spec, createContext(config, frameworks.flowkit));
+  assert.ok(flow.rules.some((rule) => rule.classes.at(-1) === "on-inverse"));
+  const { payload } = generateWebflow(spec, ctx, resolved, { selection: { theme: "dark", align: "center" } });
+  const byId = Object.fromEntries(payload.styles.map((style) => [style._id, style]));
+  const heading = payload.nodes.find((node) => node.tag === "h2");
+  const chain = heading.classes.map((id) => byId[id].name);
+  assert.deepEqual(chain, ["box_heading", "is-dark", "is-center"]);
+  assert.match(byId[heading.classes[1]].styleLess, /color:/);
+  assert.match(byId[heading.classes[2]].styleLess, /text-align: center/);
 });
 
 test("boolean if: validator, static omission, and dynamic wrappers", () => {

@@ -2,7 +2,7 @@
 // classes. Webflow is desktop-first (main → medium → small), so each mobile-first style is resolved
 // per breakpoint and only the differences are written to smaller breakpoints.
 import { randomUUID } from "node:crypto";
-import { resolveComponent, motionAttrs, defaultsOf, nodeVisible } from "../core/resolve.js";
+import { resolveComponent, motionAttrs, defaultsOf, nodeVisible, defaultSelection, nodeClasses, mapButtonVariant } from "../core/resolve.js";
 import { staticRef } from "./markup.js";
 
 const TYPE = {
@@ -32,6 +32,7 @@ export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx
     return { styleLess: toStyleLess(desktop), variants };
   };
   const defaults = { ...defaultsOf(spec), ...(options.values || {}) };
+  const selection = { ...defaultSelection(spec), ...(options.selection || {}) };
 
   // ---- Styles: every class chain gets a record; combos are children of their parent chain ----
   const styles = [];
@@ -54,14 +55,23 @@ export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx
   };
   // Only button variants this component actually uses.
   const usedChains = new Set();
-  for (const p of Object.values(spec.props)) {
-    if (p.type === "buttons") p.default.forEach((b) => usedChains.add(resolved.buttonChains[b.variant ?? "primary"].join(".")));
+  for (const [name, p] of Object.entries(spec.props)) {
+    if (p.type === "buttons") {
+      for (const b of defaults[name] || []) usedChains.add(resolved.buttonChains[mapButtonVariant(resolved, selection, b.variant)].join("."));
+    }
   }
   for (const r of resolved.rules) {
     if (r.kind === "button-variant" && !usedChains.has(r.classes.join("."))) continue;
     ensureChain(r.classes, r.style);
   }
-  const classIds = (chain) => chain.map((_, i) => ensureChain(chain.slice(0, i + 1)));
+  const variantStyle = (base, mod) => resolved.rules.find((r) => r.kind === "variant" && r.classes[0] === base && r.classes[1] === mod)?.style;
+  const classIds = (chain) => {
+    for (let i = 0; i < chain.length; i++) {
+      const part = chain.slice(0, i + 1);
+      ensureChain(part, i === 0 ? undefined : variantStyle(chain[0], part[i]));
+    }
+    return chain.map((_, i) => chainId.get(chain.slice(0, i + 1).join(".")));
+  };
 
   // ---- Nodes ----
   const nodes = [];
@@ -81,7 +91,7 @@ export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx
   function build(n, scope = null) {
     if (!nodeVisible(n, defaults)) return null;
     const id = randomUUID();
-    const base = { _id: id, tag: n.tag, classes: classIds(n.classes), children: [] };
+    const base = { _id: id, tag: n.tag, classes: classIds(nodeClasses(n, selection)), children: [] };
 
     if (n.tag === "img") {
       const img = staticRef(n.bind, defaults, scope) || {};
@@ -116,7 +126,7 @@ export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx
         const bid = randomUUID();
         nodes.push({
           _id: bid, type: "Link", tag: "a",
-          classes: classIds(resolved.buttonChains[b.variant ?? "primary"]),
+          classes: classIds(resolved.buttonChains[mapButtonVariant(resolved, selection, b.variant)]),
           children: [textNode(b.title)],
           data: { button: true, block: "", link: { mode: "external", url: b.href ?? "#" } },
         });

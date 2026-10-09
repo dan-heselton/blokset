@@ -36,4 +36,5 @@ export default {
     base: "button",
     modifier: (variant) => ({ "secondary-alt": "on-inverse", dark: "is-dark", secondary: "is-secondary" })[variant] ?? `is-${variant}`,
   },
+  variantClass: ({ option }) => (option === "dark" ? "on-inverse" : `is-${option}`),
 };

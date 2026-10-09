@@ -19,4 +19,5 @@ export default {
   },
   utilities: {},
   button: { base: "button", modifier: (variant) => `button--${variant}` },
+  variantClass: ({ elementClass, option }) => `${elementClass}--${option}`,
 };

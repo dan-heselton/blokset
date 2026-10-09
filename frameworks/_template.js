@@ -27,4 +27,5 @@ export default {
     },
   },
   button: { base: "button", modifier: (variant) => `is-${variant}` },
+  variantClass: ({ option }) => `is-${option}`,
 };
