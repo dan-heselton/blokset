@@ -157,7 +157,7 @@ export default {
                       style: { base: { position: "absolute", top: "0", right: "0", bottom: "0", left: "0", "z-index": "0" } },
                       children: [
                         { tag: "img", key: "feature-image", bind: "featureImage", style: { base: { display: "block", width: "100%", height: "100%", "object-fit": "cover" } } },
-                        { tag: "div", key: "feature-shade", style: { base: { position: "absolute", top: "0", right: "0", bottom: "0", left: "0", "background-image": "linear-gradient(to top, rgba(20, 20, 20, 0.88) 0%, rgba(20, 20, 20, 0.35) 45%, rgba(20, 20, 20, 0) 70%)" } } },
+                        { tag: "div", key: "feature-shade", style: { base: { position: "absolute", top: "0", right: "0", bottom: "0", left: "0", "background-image": "linear-gradient(to top, token(shade-strong) 0%, token(shade-mid) 45%, token(shade-clear) 70%)" } } },
                       ],
                     },
                     {
@@ -182,7 +182,7 @@ export default {
                     {
                       tag: "div", key: "stat-body",
                       children: [
-                        { tag: "div", key: "stat-value", bind: "statValue", attrs: { "data-forge-count": "" }, style: { base: { "font-family": "token(font-display)", "font-size": "5rem", "line-height": "0.9", "font-weight": "500", "letter-spacing": "-0.05em", "margin-bottom": "0.75rem" }, lg: { "font-size": "6rem" } } },
+                        { tag: "div", key: "stat-value", bind: "statValue", attrs: { "data-blok-count": "" }, style: { base: { "font-family": "token(font-display)", "font-size": "5rem", "line-height": "0.9", "font-weight": "500", "letter-spacing": "-0.05em", "margin-bottom": "0.75rem" }, lg: { "font-size": "6rem" } } },
                         { tag: "p", key: "stat-text", bind: "statText", style: { base: { "margin-top": "0", "margin-bottom": "0", "max-width": "18rem", "font-size": "0.9375rem", "line-height": "1.5" } } },
                       ],
                     },

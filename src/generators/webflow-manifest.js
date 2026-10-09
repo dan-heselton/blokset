@@ -58,7 +58,11 @@ function variantStyles(spec, ctx, group, option, opt) {
     ];
     for (const [breakpoint_id, props] of levels) {
       if (!Object.keys(props).length) continue;
-      const properties = Object.fromEntries(Object.entries(props).map(([name, value]) => [name, tokens.literal(value)]));
+      const print = (value) => {
+        const bound = tokens.webflow(value);
+        return bound && typeof bound === "object" && bound.id ? `@var_${bound.id}` : String(bound);
+      };
+      const properties = Object.fromEntries(Object.entries(props).map(([name, value]) => [name, print(value)]));
       styles.push({ style_name: `${elementClass}.${mod}`, breakpoint_id, properties });
     }
   }
@@ -182,11 +186,12 @@ export function componentManifest(spec, ctx, resolved = resolveComponent(spec, c
 /** Design tokens as a Webflow variable collection. */
 export function variablesManifest(ctx) {
   return {
-    collection: "Forge",
+    collection: "Blokset",
     variables: Object.entries(ctx.tokens.entries).map(([name, token]) => ({
       name,
       type: variableType(name, token.value),
       value: token.value,
+      ...(token.webflow ? { id: token.webflow } : {}),
     })),
   };
 }

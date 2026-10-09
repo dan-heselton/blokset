@@ -44,7 +44,7 @@ export async function startDev({ port }) {
     }
     res.writeHead(200, { "content-type": TYPES[extname(path)] || "application/octet-stream", "cache-control": "no-store" });
     res.end(await readFile(path));
-  }).listen(port, () => console.log(`\n  Forge gallery → http://localhost:${port}\n  Watching components/, frameworks/, src/, forge.config.js\n`));
+  }).listen(port, () => console.log(`\n  Blokset gallery → http://localhost:${port}\n  Watching components/, frameworks/, src/, blokset.config.js\n`));
 
   let timer;
   let building = false;
@@ -59,5 +59,5 @@ export async function startDev({ port }) {
     }, 120);
   };
   for (const dir of ["components", "frameworks", "src"]) watch(join(ROOT, dir), { recursive: true }, trigger);
-  watch(ROOT, (_e, file) => file === "forge.config.js" && trigger());
+  watch(ROOT, (_e, file) => file && file.endsWith(".config.js") && trigger());
 }

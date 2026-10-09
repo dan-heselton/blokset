@@ -1,5 +1,5 @@
 ---
-description: How to write or edit a Component Forge spec in components/
+description: How to write or edit a Blokset spec in components/
 globs: components/**/*.js
 alwaysApply: false
 ---
@@ -57,9 +57,14 @@ than the section. Full-bleed parts (marquees) can sit outside `gutter` but insid
 
 ## Motion and behaviour
 - `motion.enter` (staggered header entrance), `motion.reveal` (list items), `motion.scroll` (parallax).
-- Runtime behaviours via `attrs`: `data-forge-marquee` (+ `data-forge-speed`), `data-forge-count`,
-  `data-forge-split="words"`, `data-forge-hover-reveal` > `data-forge-hover-row` > `data-forge-hover-media`.
-  New behaviours go in `src/runtime/motion-core.js` and must respect reduced motion.
+- Runtime behaviours via `attrs`: `data-blok-marquee` (+ `data-blok-speed`, `data-blok-direction="reverse"`),
+  `data-blok-count`, `data-blok-split="words"|"rise"`, `data-blok-reveal="clip"`, `data-blok-trail`,
+  `data-blok-stack`, `data-blok-hscroll`, `data-blok-accordion`, `data-blok-billing`, `data-blok-compare`,
+  `data-blok-progress`, `data-blok-fit`, `data-blok-tabs`, `data-blok-carousel`, `data-blok-filter`,
+  `data-blok-spotlight`, `data-blok-expand`, `data-blok-lightbox`, `data-blok-swap`, `data-blok-meters`,
+  `data-blok-cycle`, `data-blok-scrub`, `data-blok-hover-reveal` > `data-blok-hover-row` > `data-blok-hover-media`.
+  An attr value starting with `=` binds a prop (`=heading`, `=item.field`). New behaviours go in
+  `src/runtime/motion-core.js` and must respect reduced motion.
 
 ## Check your work
 `npm run dev` (gallery with live reload) and `npm run check` (tests + TypeScript). Look at the

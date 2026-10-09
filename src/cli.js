@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// forge build | dev | list | add <id...> --target <t> --out <dir> [--framework <f>] [--config <path>]
+// blokset build | dev | list | add <id...> --target <t> --out <dir> [--framework <f>] [--config <path>]
 import { dirname, resolve, join, relative } from "node:path";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { buildProject, targetFiles, writeFiles } from "./build.js";
@@ -17,21 +17,22 @@ for (let i = 0; i < rest.length; i++) {
   } else positional.push(rest[i]);
 }
 
-const HELP = `Component Forge
+const HELP = `Blokset
 
-  forge dev                         Gallery at http://localhost:4400 with live reload
-  forge build [--config <path>]        Build every framework × target into dist/
-  forge sync <styles.json> --out <file> [--site <id>]
-                                    Save a get_styles export for Class Sync
-  forge list                        List components
-  forge add <id...> --target <t> --out <dir> [--framework <f>] [--config <path>] [--no-shared]
+  blokset dev                         Gallery at http://localhost:4400 with live reload
+  blokset build [--config <path>]        Build every framework × target into dist/
+  blokset sync <styles.json> --out <file> [--variables <file>] [--site <id>]
+                                    Save a get_styles export, and optional variables, for Class Sync
+  blokset list                        List components
+  blokset add <id...> --target <t> --out <dir> [--framework <f>] [--config <path>] [--no-shared]
                                     Write components into an existing project
                                     targets: ${ALL_TARGETS.join(", ")}
 
 Examples
-  forge add hero-05 stats-04 --target astro --out ../my-site/src/components/forge
-  forge add work-02 --target react --out ./app/components --framework bem
-  forge add cta-08 --target astro --out ../client/src/forge --config ../client/forge.config.js
+  blokset add hero-11 --target astro --out ../my-site/src/components/blokset
+  blokset add hero-05 stats-04 --target astro --out ../my-site/src/components/blokset
+  blokset add work-02 --target react --out ./app/components --framework bem
+  blokset add cta-08 --target astro --out ../client/src/blokset --config ../client/blokset.config.js
 `;
 
 async function main() {
@@ -42,13 +43,16 @@ async function main() {
 
     case "sync": {
       const inputPath = positional[0];
-      if (!inputPath) throw new Error("forge sync <styles.json> --out <file> [--site <id>]");
+      if (!inputPath) throw new Error("blokset sync <styles.json> --out <file> [--variables <file>] [--site <id>]");
       if (!flags.out) throw new Error("--out <file> is required");
-      const snapshot = snapshotFromExport(JSON.parse(readFileSync(resolve(inputPath), "utf8")), { site: flags.site || "" });
+      const exported = JSON.parse(readFileSync(resolve(inputPath), "utf8"));
+      const variableInput = flags.variables ? JSON.parse(readFileSync(resolve(flags.variables), "utf8")) : undefined;
+      const snapshot = snapshotFromExport(exported, { site: flags.site || "", variables: variableInput });
       const out = resolve(flags.out);
       mkdirSync(dirname(out), { recursive: true });
       writeFileSync(out, JSON.stringify(snapshot, null, 2));
-      console.log(`Synced ${snapshot.count} styles → ${relative(process.cwd(), out) || "."}`);
+      const variableCount = Object.keys(snapshot.variables).length;
+      console.log(`Synced ${snapshot.count} styles, ${variableCount} variables → ${relative(process.cwd(), out) || "."}`);
       break;
     }
 
@@ -69,7 +73,7 @@ async function main() {
       const target = flags.target;
       if (!ALL_TARGETS.includes(target)) throw new Error(`--target must be one of: ${ALL_TARGETS.join(", ")}`);
       if (!flags.out) throw new Error("--out <dir> is required");
-      if (!positional.length) throw new Error("Name at least one component id (see `forge list`)");
+      if (!positional.length) throw new Error("Name at least one component id (see `blokset list`)");
       const config = await loadConfig(flags.config ? resolve(flags.config) : undefined);
       const frameworks = await loadFrameworks();
       const fw = frameworks[flags.framework || config.framework];
@@ -81,13 +85,13 @@ async function main() {
       let files = targetFiles(specs, createContext(config, fw), target);
       // The demo page is for dist only; never drop it into someone's project.
       delete files["index.html"];
-      if (flags["no-shared"]) files = Object.fromEntries(Object.entries(files).filter(([k]) => !k.startsWith("forge-shared/")));
+      if (flags["no-shared"]) files = Object.fromEntries(Object.entries(files).filter(([k]) => !k.startsWith("blokset/")));
       const out = resolve(flags.out);
       writeFiles(out, files);
       console.log(`Added ${specs.map((s) => s.id).join(", ")} (${fw.label}, ${target}) → ${relative(process.cwd(), out) || "."}`);
       for (const f of Object.keys(files)) console.log(`  ${f}`);
       if (target === "react" || target === "astro") {
-        console.log(`\nNext: import "./forge-shared/index.css" once in your layout${specs.some((s) => s.motion) ? ", and npm i gsap" : ""}.`);
+        console.log(`\nNext: import "./blokset/index.css" once in your layout${specs.some((s) => s.motion) ? ", and npm i gsap" : ""}.`);
       }
       if (target === "webflow" && files["footer-code.html"]) console.log(`\nPaste footer-code.html into Webflow → Site settings → Custom code → Footer.`);
       break;

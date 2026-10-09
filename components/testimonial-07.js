@@ -93,7 +93,7 @@ export default {
               ],
             },
             {
-              tag: "p", key: "quote", bind: "quote", attrs: { "data-forge-split": "words" },
+              tag: "p", key: "quote", bind: "quote", attrs: { "data-blok-split": "words" },
               style: {
                 base: { "margin-top": "0", "margin-bottom": "0", "max-width": "70rem", "text-indent": "0rem", "font-family": "token(font-display)", "font-size": "2rem", "line-height": "1.12", "font-weight": "500", "letter-spacing": "-0.03em", color: paint.color },
                 md: { "font-size": "3rem" },

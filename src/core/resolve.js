@@ -148,7 +148,7 @@ export function allUtilities(ctx) {
   return { ...ctx.framework.utilities, ...(ctx.config.utilities || {}) };
 }
 
-/** Button class chains per variant, honouring forge.config.js → classes.button. */
+/** Button class chains per variant, honouring blokset.config.js → classes.button. */
 export function resolveButtons(ctx) {
   const { framework: fw, config } = ctx;
   const cfg = config.classes?.button ?? {};
@@ -161,7 +161,7 @@ export function resolveButtons(ctx) {
       : buttonPrimitive.variants[variant] ? [fw.button.modifier(variant)] : [];
     chains[variant] = [base, ...mods];
   }
-  return { base, chains, styles: cfg.styles ?? "forge" };
+  return { base, chains, styles: cfg.styles ?? "blokset" };
 }
 
 export function buttonRules(buttons) {
@@ -184,18 +184,18 @@ export function usesButtons(spec) {
   return found;
 }
 
-/** data-forge-* attributes per element key, from spec.motion. */
+/** data-blok-* attributes per element key, from spec.motion. */
 export function motionAttrs(spec) {
   const map = {};
   const { enter, reveal, scroll } = spec.motion || {};
   (enter?.targets || []).forEach((k, i) => {
-    map[k] = { "data-forge-enter": enter.preset, "data-forge-delay": (i * enter.stagger).toFixed(2) };
+    map[k] = { "data-blok-enter": enter.preset, "data-blok-delay": (i * enter.stagger).toFixed(2) };
   });
   (reveal?.targets || []).forEach((k) => {
-    map[k] = { ...(map[k] || {}), "data-forge-enter": reveal.preset };
+    map[k] = { ...(map[k] || {}), "data-blok-enter": reveal.preset };
   });
   (scroll?.targets || []).forEach((k) => {
-    map[k] = { ...(map[k] || {}), "data-forge-scroll": scroll.preset, "data-forge-strength": String(scroll.strength) };
+    map[k] = { ...(map[k] || {}), "data-blok-scroll": scroll.preset, "data-blok-strength": String(scroll.strength) };
   });
   return map;
 }
@@ -205,7 +205,7 @@ export function usesRuntime(spec) {
   if (spec.motion && Object.keys(spec.motion).length) return true;
   let found = false;
   const walk = (n) => {
-    if (Object.keys(n.attrs || {}).some((a) => a.startsWith("data-forge-"))) found = true;
+    if (Object.keys(n.attrs || {}).some((a) => a.startsWith("data-blok-"))) found = true;
     (n.children || []).forEach(walk);
   };
   walk(spec.tree);

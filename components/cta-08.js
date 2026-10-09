@@ -95,7 +95,7 @@ export default {
                   tag: "div", key: "status-row",
                   style: { base: { display: "flex", "align-items": "center", "column-gap": "0.75rem" } },
                   children: [
-                    { tag: "div", key: "dot", decorative: true, style: { base: { width: "0.5rem", height: "0.5rem", "border-top-left-radius": "50%", "border-top-right-radius": "50%", "border-bottom-left-radius": "50%", "border-bottom-right-radius": "50%", "background-color": glyph, "box-shadow": "0 0 0 4px rgba(255, 91, 46, 0.25)" } } },
+                    { tag: "div", key: "dot", decorative: true, style: { base: { width: "0.5rem", height: "0.5rem", "border-top-left-radius": "50%", "border-top-right-radius": "50%", "border-bottom-left-radius": "50%", "border-bottom-right-radius": "50%", "background-color": glyph, "box-shadow": "0 0 0 4px token(accent-glow)" } } },
                     { tag: "div", key: "status", bind: "status", style: { base: { ...mono(paint.color), "letter-spacing": "0.06em" } } },
                   ],
                 },
@@ -111,7 +111,7 @@ export default {
             },
             children: [
               {
-                tag: "div", key: "track", repeat: "phrases", attrs: { "data-forge-marquee": "", "data-forge-speed": "70" },
+                tag: "div", key: "track", repeat: "phrases", attrs: { "data-blok-marquee": "", "data-blok-speed": "70" },
                 style: { base: { display: "flex", width: "max-content" } },
                 children: [
                   {

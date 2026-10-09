@@ -2,8 +2,10 @@
  * Webflow Flowkit — DRAFT.
  * From Flowkit's docs: underscores separate a component from its parts (card_body), hyphenated combo
  * modifiers (is-secondary, on-inverse), and utilities as property_value (padding-top_xxlarge).
- * Flowkit styles everything with Webflow variables; until variable sync exists, values here are
- * literals. Verify structure class names against a Flowkit cloneable before relying on this.
+ * Flowkit styles everything with Webflow variables. Utility classes inherit the site's
+ * variable-backed styles once they are in the Class Sync snapshot. Component classes inherit
+ * through token `webflow` ids. Until a site snapshot is configured, values here are literals.
+ * Verify structure class names against a Flowkit cloneable before relying on this.
  * @type {import("../src/types").FrameworkProfile}
  */
 export default {

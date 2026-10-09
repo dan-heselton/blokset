@@ -105,7 +105,8 @@ export function renderMarkup(spec, resolved, mode, startDepth = 0, options = {})
     if (templateRoot && mode === "react") a += " key={index}";
     if (node.decorative) a += ` aria-hidden="true"`;
     for (const [k, v] of Object.entries({ ...(motion[node.key] || {}), ...(node.attrs || {}) })) {
-      a += v === "" ? ` ${k}` : ` ${k}="${escapeHtml(v)}"`;
+      if (typeof v === "string" && v.startsWith("=")) a += attr(k, v.slice(1), scope);
+      else a += v === "" ? ` ${k}` : ` ${k}="${escapeHtml(v)}"`;
     }
 
     if (node.tag === "img") {

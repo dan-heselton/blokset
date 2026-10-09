@@ -1,16 +1,17 @@
 // Project config. One per project: copy this file into a client project (or keep presets here) so
 // generated components match that project's classes, tokens and utilities.
-/** @type {import("./src/types").ForgeConfig} */
+/** @type {import("./src/types").BloksetConfig} */
 export default {
-  // Class framework used for the gallery preview and `forge add`. See /frameworks.
+  // Class framework used for the gallery preview and `blokset add`. See /frameworks.
   framework: "client-first",
   // Also build these into dist/ and the gallery's framework switcher.
   frameworks: ["bem", "flowkit"],
 
   targets: ["react", "astro", "html", "vanilla", "webflow"],
 
-  // Token overrides. A string replaces the value; { value, css } maps the token onto a CSS variable
-  // your project already has (code outputs use `css`, Webflow pastes use `value`).
+  // Token overrides. A string replaces the value. An object can map the token:
+  // `css` is used by code outputs, `webflow` is a destination-site variable name or id.
+  // Webflow pastes use `value` until `webflow` resolves to a variable id.
   tokens: {
     // accent: "#2f6bff",
     // ink: { value: "#141414", css: "var(--color-text)" },
@@ -35,8 +36,8 @@ export default {
       //   secondary: "is-secondary",
       //   "secondary-alt": ["is-secondary", "is-alternate"],
       // },
-      // "forge" ships button styles; "none" = your project already styles these classes.
-      styles: "forge",
+      // "blokset" ships button styles; "none" = your project already styles these classes.
+      styles: "blokset",
     },
   },
 };

@@ -1,10 +1,10 @@
 {
-  "name": "component-forge",
+  "name": "blokset",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "One component spec → React, Astro, HTML/CSS, vanilla JS and Webflow, in any class framework.",
-  "bin": { "forge": "./src/cli.js" },
+  "bin": { "blokset": "./src/cli.js" },
   "scripts": {
     "dev": "node src/cli.js dev",
     "build": "node src/cli.js build",

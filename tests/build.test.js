@@ -1,13 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { transform } from "@astrojs/compiler";
-import { loadConfig, loadFrameworks, loadComponents, createContext } from "../src/core/config.js";
+import { ROOT, loadConfig, loadFrameworks, loadComponents, createContext } from "../src/core/config.js";
 import { validateSpec } from "../src/core/validate.js";
 import { resolveComponent, allSelections, selectionKey } from "../src/core/resolve.js";
 import { componentCss, generateReact, generateAstro, generateHtml, generateVanilla } from "../src/generators/code.js";
 import { generateWebflow } from "../src/generators/webflow.js";
 import { WEBFLOW_PROPERTY_ORDER } from "../src/core/webflow-order.js";
-import { snapshotFromExport } from "../src/sync.js";
+import { snapshotFromExport, variablesFromExport, bindTokenVariables } from "../src/sync.js";
 import { componentManifest, variablesManifest } from "../src/generators/webflow-manifest.js";
 import { renderMarkup } from "../src/generators/markup.js";
 
@@ -80,6 +82,7 @@ test("project config: tokens can map onto project CSS variables", () => {
   const css = r.rules.map((x) => JSON.stringify(x.style)).join("");
   assert.ok(css.includes("token(ink)"));
   assert.ok(ctx.tokens.css("token(ink)") === "var(--color-ink)");
+  assert.equal(ctx.tokens.webflow("token(ink)"), "#000");
   assert.ok(JSON.stringify(generateWebflow(spec, ctx)).includes("#000"));
 });
 
@@ -264,7 +267,7 @@ test("webflow manifest covers every prop and variant option", () => {
   assert.ok(manifest.props.some((prop) => prop.prop === "buttons" && prop.type === "link"));
   assert.equal(manifest.props.find((prop) => prop.name === "showButtons").label, "Show Buttons");
   const variables = variablesManifest(ctx);
-  assert.equal(variables.collection, "Forge");
+  assert.equal(variables.collection, "Blokset");
   assert.equal(variables.variables.find((item) => item.name === "ink").type, "Color");
   assert.equal(variables.variables.find((item) => item.name === "ink-2").value, "#22211f");
   assert.equal(variables.variables.find((item) => item.name === "radius").type, "Size");
@@ -301,7 +304,7 @@ test("webflow styleLess follows Webflow property order and omits unmapped fonts"
   const hero = specs.find((spec) => spec.id === "hero-05");
   const pasted = JSON.stringify(generateWebflow(hero, mapped));
   assert.match(pasted, /font-family: Inter Tight;/);
-  assert.match(componentCss(hero, resolveComponent(hero, mapped), mapped), /var\(--forge-font-display\)/);
+  assert.match(componentCss(hero, resolveComponent(hero, mapped), mapped), /var\(--blok-font-display\)/);
   const hidden = generateWebflow(specs.find((spec) => spec.id === "features-12"), ctx).payload;
   assert.equal(hidden.styles.some((style) => style.name === "features12_image"), false);
   const heroPaste = generateWebflow(hero, ctx).payload;
@@ -328,6 +331,7 @@ test("class sync pastes the snapshot styleLess, including variable refs", () => 
   const expectedMain = "display: block; background-color: @var_variable-ink; color: #ffffff;";
   const ctx = createContext({
     ...config,
+    tokens: { ink: { value: "#000", webflow: "should-not-replace-snapshot" } },
     webflow: { styles: snapshot.styles },
   }, frameworks["client-first"]);
   const { payload } = generateWebflow(specs.find((spec) => spec.id === "features-12"), ctx);
@@ -335,6 +339,74 @@ test("class sync pastes the snapshot styleLess, including variable refs", () => 
   assert.equal(section.styleLess, expectedMain);
   assert.equal(section.variants.medium.styleLess, "padding-top: 2rem;");
   assert.equal(section.variants.tiny.styleLess, "padding-top: 1rem;");
+  const heading = payload.styles.find((style) => style.name === "features12_heading");
+  assert.match(heading.styleLess, /color: @var_should-not-replace-snapshot;/);
+});
+
+test("mapped webflow tokens paste variable refs and unmapped tokens stay literal", () => {
+  const ctx = createContext({
+    ...config,
+    tokens: {
+      ink: { value: "#111111", webflow: "variable-ink" },
+      "font-display": { value: "'Inter Tight', system-ui, sans-serif", webflow: "variable-font" },
+    },
+    webflow: { fonts: { "font-display": "Inter Tight" } },
+  }, frameworks["client-first"]);
+  const features = generateWebflow(specs.find((spec) => spec.id === "features-12"), ctx).payload;
+  const heading = features.styles.find((style) => style.name === "features12_heading");
+  assert.match(heading.styleLess, /color: @var_variable-ink;/);
+  assert.match(heading.styleLess, /font-family: @var_variable-font;/);
+  const quote = generateWebflow(specs.find((spec) => spec.id === "testimonial-07"), ctx).payload;
+  const section = quote.styles.find((style) => style.name.startsWith("section_"));
+  assert.match(section.styleLess, /background-color: #ff5b2e;/);
+  const shade = generateWebflow(specs.find((spec) => spec.id === "features-20"), ctx).payload;
+  const gradient = shade.styles.find((style) => style.name === "features20_feature-shade");
+  assert.match(gradient.styleLess, /rgba\(20, 20, 20, 0\.88\)/);
+  const hero = specs.find((spec) => spec.id === "hero-05");
+  const subtle = generateWebflow(hero, ctx, undefined, { selection: { overlay: "subtle" } }).payload;
+  const overlay = subtle.styles.find((style) => style.name === "hero05_overlay");
+  const combo = subtle.styles.find((style) => overlay.children.includes(style._id) && style.name === "is-subtle");
+  assert.match(combo.styleLess, /background-color: rgba\(0, 0, 0, 0\.28\);/);
+});
+
+test("variable exports resolve token names to destination ids", async () => {
+  const variables = variablesFromExport({
+    result: [{ name: "Text Primary", id: "var-ink", type: "Color" }, { selector: ".button", properties: [] }],
+  });
+  assert.deepEqual(variables, { "Text Primary": { id: "var-ink", type: "Color" } });
+  assert.deepEqual(bindTokenVariables({ ink: { value: "#111", webflow: "Text Primary" } }, variables).ink.webflow, "var-ink");
+  assert.deepEqual(bindTokenVariables({ ink: { value: "#111", webflow: "var-ink" } }, variables).ink.webflow, "var-ink");
+  assert.throws(() => bindTokenVariables({ ink: { value: "#111", webflow: "Missing" } }, variables), /Missing/);
+  const combined = snapshotFromExport({
+    styles: [{ name: "button", properties: [{ property_name: "display", property_value: "block" }] }],
+    variables: [{ name: "Heading", id: "var-font", type: "FontFamily" }],
+  }, {
+    variables: [{ name: "Text Primary", id: "var-ink", type: "Color" }],
+  });
+  assert.equal(combined.variables["Text Primary"].id, "var-ink");
+  assert.equal(combined.variables.Heading.id, "var-font");
+  assert.equal(combined.count, 1);
+
+  const dir = mkdtempSync(join(ROOT, ".tmp-blok-sync-"));
+  try {
+    writeFileSync(join(dir, "snapshot.json"), JSON.stringify({
+      styles: {},
+      variables: [{ name: "Text Primary", id: "var-ink", type: "Color" }],
+    }));
+    writeFileSync(join(dir, "blokset.config.js"), `export default {
+      framework: "client-first",
+      targets: ["webflow"],
+      tokens: { ink: { value: "#111", css: "var(--color-text)", webflow: "Text Primary" } },
+      webflow: { snapshot: "./snapshot.json" },
+    };\n`);
+    const loaded = await loadConfig(join(dir, "blokset.config.js"));
+    assert.equal(loaded.tokens.ink.webflow, "var-ink");
+    const ctx = createContext(loaded, frameworks["client-first"]);
+    assert.equal(ctx.tokens.webflow("token(ink)").id, "var-ink");
+    assert.equal(ctx.tokens.css("token(ink)"), "var(--color-text)");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("every variant combination renders and its Webflow payload has no dangling class ids", () => {

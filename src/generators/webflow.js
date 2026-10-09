@@ -22,7 +22,12 @@ export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx
   const { tokens } = ctx;
   const fonts = ctx.config.webflow?.fonts || {};
   const synced = ctx.config.webflow?.styles || {};
-  const cssValue = (value) => (value && typeof value === "object" && value.id ? `@var_${value.id}` : tokens.literal(value));
+  const cssValue = (value) => {
+    if (value && typeof value === "object" && value.id) return `@var_${value.id}`;
+    const bound = tokens.webflow(value);
+    if (bound && typeof bound === "object" && bound.id) return `@var_${bound.id}`;
+    return String(bound);
+  };
   const withoutUnmappedFont = (props) => {
     const next = {};
     for (const [key, value] of Object.entries(props || {})) {
@@ -31,7 +36,8 @@ export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx
         continue;
       }
       const token = String(value).match(/^token\(([\w-]+)\)$/)?.[1];
-      if (token && fonts[token]) next[key] = fonts[token];
+      if (token && tokens.entries[token]?.webflow) next[key] = value;
+      else if (token && fonts[token]) next[key] = fonts[token];
     }
     return next;
   };
@@ -99,8 +105,11 @@ export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx
     nodes.push({ _id: id, text: true, v: String(v ?? "") });
     return id;
   };
-  const xattr = (n) => [
-    ...Object.entries({ ...(motion[n.key] || {}), ...(n.attrs || {}) }).map(([name, value]) => ({ name, value })),
+  const xattr = (n, scope) => [
+    ...Object.entries({ ...(motion[n.key] || {}), ...(n.attrs || {}) }).map(([name, value]) => ({
+      name,
+      value: typeof value === "string" && value.startsWith("=") ? String(staticRef(value.slice(1), defaults, scope) ?? "") : value,
+    })),
     ...(n.decorative ? [{ name: "aria-hidden", value: "true" }] : []),
   ];
   const hrefOf = (n, scope) =>
@@ -118,7 +127,7 @@ export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx
         ...base, type: "Image",
         data: {
           attr: { src: img.src, alt: img.alt ?? "", loading: prop?.priority ? "eager" : "lazy", width: "auto", height: "auto" },
-          img: { id: "" }, srcsetDisabled: false, sizes: [], xattr: xattr(n),
+          img: { id: "" }, srcsetDisabled: false, sizes: [], xattr: xattr(n, scope),
         },
       });
       return id;
@@ -127,11 +136,11 @@ export function generateWebflow(spec, ctx, resolved = resolveComponent(spec, ctx
     let el;
     if (n.tag === "a") {
       const hasElements = n.children.length > 0 || n.repeat;
-      el = { ...base, type: "Link", data: { block: hasElements ? "block" : "", button: false, link: { mode: "external", url: hrefOf(n, scope) }, xattr: xattr(n) } };
+      el = { ...base, type: "Link", data: { block: hasElements ? "block" : "", button: false, link: { mode: "external", url: hrefOf(n, scope) }, xattr: xattr(n, scope) } };
     } else {
       const t = TYPE[n.tag];
       if (!t) throw new Error(`No Webflow mapping for <${n.tag}>`);
-      el = { ...base, type: t.type, data: { ...t.data, xattr: xattr(n) } };
+      el = { ...base, type: t.type, data: { ...t.data, xattr: xattr(n, scope) } };
       if (n.tag === "div" && (n.bind || n.text !== undefined)) el.data.text = true;
     }
 

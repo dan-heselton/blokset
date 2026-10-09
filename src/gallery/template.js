@@ -9,10 +9,30 @@ const jsonForScript = (v) => JSON.stringify(v).replace(/</g, "\\u003c");
 const MOTION_DEFS = [
   { id: "reveal", label: "Reveal", test: (spec) => !!spec.motion?.reveal },
   { id: "parallax", label: "Parallax", test: (spec) => spec.motion?.scroll?.preset === "parallax" },
-  { id: "count-up", label: "Count-up", test: (_spec, has) => has("data-forge-count") },
-  { id: "marquee", label: "Marquee", test: (_spec, has) => has("data-forge-marquee") },
-  { id: "scroll-highlight", label: "Scroll highlight", test: (_spec, has) => has("data-forge-split") },
-  { id: "hover-reveal", label: "Hover reveal", test: (_spec, has) => has("data-forge-hover-reveal") },
+  { id: "count-up", label: "Count-up", test: (_spec, has) => has("data-blok-count") },
+  { id: "marquee", label: "Marquee", test: (_spec, has) => has("data-blok-marquee") },
+  { id: "scroll-highlight", label: "Scroll highlight", test: (_spec, _has, is) => is("data-blok-split", "words") },
+  { id: "word-rise", label: "Word rise", test: (_spec, _has, is) => is("data-blok-split", "rise") },
+  { id: "clip-reveal", label: "Clip reveal", test: (_spec, has) => has("data-blok-reveal") },
+  { id: "image-trail", label: "Image trail", test: (_spec, has) => has("data-blok-trail") },
+  { id: "stack", label: "Stack", test: (_spec, has) => has("data-blok-stack") },
+  { id: "horizontal-scroll", label: "Horizontal scroll", test: (_spec, has) => has("data-blok-hscroll") },
+  { id: "accordion", label: "Accordion", test: (_spec, has) => has("data-blok-accordion") },
+  { id: "billing-toggle", label: "Billing toggle", test: (_spec, has) => has("data-blok-billing") },
+  { id: "compare", label: "Compare", test: (_spec, has) => has("data-blok-compare") },
+  { id: "progress", label: "Progress", test: (_spec, has) => has("data-blok-progress") },
+  { id: "fit-text", label: "Fit text", test: (_spec, has) => has("data-blok-fit") },
+  { id: "hover-reveal", label: "Hover reveal", test: (_spec, has) => has("data-blok-hover-reveal") },
+  { id: "tabs", label: "Tabs", test: (_spec, has) => has("data-blok-tabs") },
+  { id: "carousel", label: "Carousel", test: (_spec, has) => has("data-blok-carousel") },
+  { id: "filter", label: "Filter", test: (_spec, has) => has("data-blok-filter") },
+  { id: "spotlight", label: "Spotlight", test: (_spec, has) => has("data-blok-spotlight") },
+  { id: "expand", label: "Expand", test: (_spec, has) => has("data-blok-expand") },
+  { id: "lightbox", label: "Lightbox", test: (_spec, has) => has("data-blok-lightbox") },
+  { id: "swap", label: "Hover swap", test: (_spec, has) => has("data-blok-swap") },
+  { id: "meters", label: "Meters", test: (_spec, has) => has("data-blok-meters") },
+  { id: "cycle", label: "Rotating line", test: (_spec, has) => has("data-blok-cycle") },
+  { id: "filmstrip", label: "Filmstrip", test: (_spec, has) => has("data-blok-scrub") },
 ];
 
 const OUTPUTS = [
@@ -44,7 +64,8 @@ export function motionOf(spec) {
   const attrs = [];
   walk(spec.tree, (node) => node.attrs && attrs.push(node.attrs));
   const has = (name) => attrs.some((a) => Object.prototype.hasOwnProperty.call(a, name));
-  return MOTION_DEFS.filter((def) => def.test(spec, has)).map(({ id, label }) => ({ id, label }));
+  const is = (name, value) => attrs.some((a) => a[name] === value);
+  return MOTION_DEFS.filter((def) => def.test(spec, has, is)).map(({ id, label }) => ({ id, label }));
 }
 
 function optionLabel(option, opt) {
@@ -84,8 +105,17 @@ function categoryLabel(category) {
 }
 
 /** Specimen crops show the resting layout. Motion stays on the opened preview. */
-function stripForgeAttrs(html) {
-  return String(html).replace(/\sdata-forge-[a-z0-9-]+(?:=(?:"[^"]*"|'[^']*'))?/gi, "");
+function stripBlokAttrs(html) {
+  return String(html).replace(/\sdata-blok-[a-z0-9-]+(?:=(?:"[^"]*"|'[^']*'))?/gi, "");
+}
+
+/** Fixed iframe viewport so 100svh and desktop media queries follow the card, not the monitor. */
+const SPECIMEN_WIDTH = 1200;
+const SPECIMEN_HEIGHT = 720;
+
+function specimenSrcdoc(html) {
+  const doc = `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="./preview.css"><style>html,body{margin:0;width:${SPECIMEN_WIDTH}px;height:${SPECIMEN_HEIGHT}px;overflow:hidden;background:#fff}</style></head><body>${stripBlokAttrs(html)}</body></html>`;
+  return esc(doc);
 }
 
 export function renderGallery({ specs, config, frameworks, previewCss, previews, outputs, variantPreviews, variantWebflow, footerCode, dev }) {
@@ -107,6 +137,8 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
   const motions = MOTION_DEFS.filter((def) => catalog.some((item) => item.motion.some((m) => m.id === def.id))).map(({ id, label }) => ({ id, label }));
   const outputsAvailable = OUTPUTS.filter((o) => config.targets.includes(o.id));
   const previewFramework = frameworks.find((f) => f.name === config.framework) || frameworks[0];
+  // Component CSS is written to preview.css. The page and specimen iframes both link it.
+  void previewCss;
 
   const chips = (group, items) =>
     [`<button type="button" class="g-chip" data-filter="${group}" data-value="" aria-pressed="true">All</button>`]
@@ -118,7 +150,7 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Component Forge</title>
+<title>Blokset</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
@@ -184,8 +216,8 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
   .g-card { min-width: 0; border: 1px solid var(--g-line); border-radius: 14px; background: var(--g-panel); overflow: hidden; }
   .g-card-open { display: flex; flex-direction: column; height: 100%; color: inherit; text-decoration: none; border-radius: 14px; }
   .g-card-open:hover .g-open, .g-card-open:focus-visible .g-open { background: var(--g-chip); }
-  .g-specimen { position: relative; height: 200px; overflow: hidden; background: #fff; border-bottom: 1px solid var(--g-line); container-type: inline-size; }
-  .g-specimen-fit { position: absolute; top: 0; left: 0; width: 1440px; transform-origin: top left; transform: scale(calc(100cqw / 1440px)); pointer-events: none; }
+  .g-specimen { position: relative; aspect-ratio: 1200 / 720; overflow: hidden; background: var(--g-thumb); border-bottom: 1px solid var(--g-line); container-type: inline-size; }
+  .g-specimen-frame { position: absolute; top: 0; left: 0; width: 1200px; height: 720px; border: 0; background: #fff; transform-origin: top left; transform: scale(calc(100cqw / 1200px)); pointer-events: none; }
   .g-card-meta { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px 16px 16px; }
   .g-card-meta h2 { margin: 0; font-family: "Inter Tight", sans-serif; font-size: 16px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; }
   .g-id { font: 500 12px/1 "JetBrains Mono", ui-monospace, monospace; color: var(--g-muted); }
@@ -227,7 +259,6 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
     .g-grid { grid-template-columns: 1fr 1fr; gap: 18px; padding: 20px 24px 28px; }
     .g-preview-note, .g-help { margin-left: 24px; margin-right: 24px; }
     .g-preview-note { padding-left: 0; padding-right: 0; }
-    .g-specimen { height: 220px; }
   }
   @media (min-width: 1200px) {
     .g-grid { grid-template-columns: 1fr 1fr 1fr; }
@@ -237,16 +268,13 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
     .g-toast { transition: none; }
   }
 </style>
-<style>
-/* ===== Component styles (${esc(previewFramework.name)}) ===== */
-${previewCss}
-</style>
+<link rel="stylesheet" href="./preview.css">
 </head>
 <body>
 <a class="g-skip" href="#g-grid">Skip to components</a>
 <div class="g-sticky">
 <header class="g-top">
-  <a class="g-logo" href="./" id="g-home"><span class="g-logo-mark" aria-hidden="true"></span>Forge</a>
+  <a class="g-logo" href="./" id="g-home"><span class="g-logo-mark" aria-hidden="true"></span>Blokset</a>
   <label class="g-search">Search
     <input id="g-search" type="search" name="q" placeholder="Name, id, or description" autocomplete="off" enterkeyhint="search">
   </label>
@@ -300,7 +328,7 @@ ${previewCss}
       ${catalog.map((item) => `
       <article class="g-card" data-id="${esc(item.id)}" data-category="${esc(item.category)}" data-motion="${esc(item.motion.map((m) => m.id).join(" "))}" data-search="${esc([item.name, item.id, item.description, item.category, item.categoryLabel, ...item.motion.flatMap((m) => [m.id, m.label])].join(" ").toLowerCase())}">
         <a class="g-card-open" href="#${esc(item.id)}" aria-label="Open ${esc(item.name)}">
-          <div class="g-specimen" aria-hidden="true"><div class="g-specimen-fit">${stripForgeAttrs(previews[item.id] || "")}</div></div>
+          <div class="g-specimen" aria-hidden="true"><iframe class="g-specimen-frame" width="${SPECIMEN_WIDTH}" height="${SPECIMEN_HEIGHT}" tabindex="-1" scrolling="no" title="" srcdoc="${specimenSrcdoc(previews[item.id] || "")}"></iframe></div>
           <div class="g-card-meta">
             <h2>${esc(item.name)}</h2>
             <span class="g-id">${esc(item.id)}</span>
@@ -327,7 +355,7 @@ ${previewCss}
     <div class="g-preview" id="g-detail-preview"></div>
     <div class="g-help">
       <h2>Motion in Webflow</h2>
-      Components with motion use the Forge runtime. Paste this once into Site settings → Custom code → Footer.
+      Components with motion use the Blokset runtime. Paste this once into Site settings → Custom code → Footer.
       <div style="margin-top:10px"><button type="button" class="g-btn" id="g-copy-footer">Copy footer code</button></div>
     </div>
   </div>
@@ -514,7 +542,7 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
     if (!tpl) tpl = document.getElementById("tpl-" + currentId);
     teardownPreview();
     if (tpl) preview.appendChild(tpl.content.cloneNode(true));
-    if (window.ForgeMotion) window.ForgeMotion.init(preview);
+    if (window.Blokset) window.Blokset.init(preview);
   }
   function usageText() {
     var spec = data.components[currentId];
@@ -554,7 +582,7 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
     detailTop.hidden = false;
     document.getElementById("g-detail-heading").textContent = spec.name;
     document.getElementById("g-detail-id").textContent = id;
-    document.title = spec.name + " — Component Forge";
+    document.title = spec.name + " — Blokset";
     statusEl.textContent = "";
     codePanel.classList.remove("is-open");
     codeBtn.setAttribute("aria-expanded", "false");
@@ -574,7 +602,7 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
     detailTop.hidden = true;
     catalog.hidden = false;
     filters.hidden = false;
-    document.title = "Component Forge";
+    document.title = "Blokset";
     writeUrl(null, push);
     var backTo = returnId && document.querySelector('.g-card[data-id="' + CSS.escape(returnId) + '"] .g-card-open');
     if (backTo) backTo.focus();

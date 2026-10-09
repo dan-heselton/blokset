@@ -111,11 +111,11 @@ export default {
               ],
             },
             {
-              tag: "div", key: "list", repeat: "projects", attrs: { "data-forge-hover-reveal": "" },
+              tag: "div", key: "list", repeat: "projects", attrs: { "data-blok-hover-reveal": "" },
               style: { base: { position: "relative", "border-bottom-width": "1px", "border-bottom-style": "solid", "border-bottom-color": line } },
               children: [
                 {
-                  tag: "a", key: "row", href: "item.href", attrs: { "data-forge-hover-row": "" },
+                  tag: "a", key: "row", href: "item.href", attrs: { "data-blok-hover-row": "" },
                   style: {
                     base: { display: "flex", "flex-wrap": "wrap", "align-items": "baseline", "column-gap": "1.5rem", "row-gap": "0.5rem", "padding-top": "1.5rem", "padding-bottom": "1.5rem", "border-top-width": "1px", "border-top-style": "solid", "border-top-color": line, color: paint.color, "text-decoration": "none" },
                     md: { "flex-wrap": "nowrap" },
@@ -140,7 +140,7 @@ export default {
                     },
                     { tag: "div", key: "year", bind: "item.year", if: "showYear", style: { base: { display: "none", "font-family": "token(font-mono)", "font-size": "0.8125rem", color: muted }, md: { display: "block" } } },
                     {
-                      tag: "div", key: "media", decorative: true, if: "showImages", attrs: { "data-forge-hover-media": "" },
+                      tag: "div", key: "media", decorative: true, if: "showImages", attrs: { "data-blok-hover-media": "" },
                       style: {
                         base: { display: "none", position: "absolute", top: "0", left: "0", "z-index": "2", width: "20rem", height: "14rem", overflow: "hidden", ...radius("0.375rem"), "pointer-events": "none", opacity: "0", visibility: "hidden" },
                         lg: { display: "block" },

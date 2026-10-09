@@ -51,9 +51,9 @@ export default {
       label: "Overlay",
       default: "medium",
       options: {
-        subtle: { label: "Subtle", styles: { overlay: { base: { "background-color": "rgba(0, 0, 0, 0.28)" } } } },
+        subtle: { label: "Subtle", styles: { overlay: { base: { "background-color": "token(overlay-subtle)" } } } },
         medium: null,
-        strong: { label: "Strong", styles: { overlay: { base: { "background-color": "rgba(0, 0, 0, 0.72)" } } } },
+        strong: { label: "Strong", styles: { overlay: { base: { "background-color": "token(overlay-strong)" } } } },
       },
     },
     height: {

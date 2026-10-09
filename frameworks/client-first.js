@@ -4,7 +4,7 @@
  *
  * Webflow renames a pasted class ("padding-global 2") when the project already has a class with the
  * same name but different styles, so these utility values must match your project. Override them per
- * project in forge.config.js → utilities instead of editing this file.
+ * project in blokset.config.js → utilities instead of editing this file.
  * @type {import("../src/types").FrameworkProfile}
  */
 export default {

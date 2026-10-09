@@ -51,7 +51,7 @@ export interface ElementNode {
   repeat?: string;
   /** Hidden from assistive tech (aria-hidden). */
   decorative?: boolean;
-  /** Extra attributes, e.g. runtime behaviours: { "data-forge-marquee": "" }. */
+  /** Extra attributes. Runtime behaviours use data-blok-*. A value "=prop" or "=item.field" binds content. */
   attrs?: Record<string, string>;
   /** Boolean prop name, or "!name" to invert. Omitted when the prop is true. */
   if?: string;
@@ -110,15 +110,15 @@ export interface FrameworkProfile {
   variantClass?: (args: { prefix: string; key: string; elementClass: string; group: string; option: string }) => string;
 }
 
-export type TokenValue = string | { value: string; css?: string };
+export type TokenValue = string | { value: string; css?: string; /** Destination-site variable name or id. */ webflow?: string };
 
-export interface ForgeConfig {
+export interface BloksetConfig {
   /** Framework profile name from /frameworks. */
   framework: string;
   /** Frameworks to build in addition to the default (for the gallery and dist). */
   frameworks?: string[];
   targets?: Array<"react" | "astro" | "html" | "vanilla" | "webflow">;
-  /** Override token values, or map them onto your project's CSS variables with { value, css }. */
+  /** Override token values, map code outputs with { value, css }, or bind Webflow with { value, webflow }. */
   tokens?: Record<string, TokenValue>;
   /** Override or replace framework utility values so Webflow pastes don't collide. */
   utilities?: Record<string, ResponsiveStyle>;
@@ -128,14 +128,19 @@ export interface ForgeConfig {
       base?: string;
       /** Extra classes per variant, e.g. { "secondary-alt": ["is-secondary", "is-alternate"] }. */
       variants?: Partial<Record<ButtonVariant, string | string[]>>;
-      /** "forge" ships button styles; "none" assumes your project already styles these classes. */
-      styles?: "forge" | "none";
+      /** "blokset" ships button styles; "none" assumes your project already styles these classes. */
+      styles?: "blokset" | "none";
     };
   };
-  /** Site-specific Webflow paste settings. `snapshot` is a path relative to this config file. */
+  /** Site-specific Webflow paste settings. Paths are relative to this config file. */
   webflow?: {
     snapshot?: string;
+    /** Variables export. Names in `tokens.*.webflow` also resolve against `snapshot.variables`. */
+    variables?: string;
     /** Installed site fonts, keyed by token name. Unmapped font-family values are omitted from pastes. */
     fonts?: Record<string, string>;
   };
 }
+
+/** @deprecated Use BloksetConfig. */
+export type ForgeConfig = BloksetConfig;

@@ -1,5 +1,5 @@
 ---
-description: Component Forge architecture: where things live and how a spec becomes outputs
+description: Blokset architecture: where things live and how a spec becomes outputs
 alwaysApply: true
 ---
 
@@ -10,7 +10,7 @@ Pipeline: `components/*.js` (spec) → `src/core/resolve.js` (apply framework pr
 
 - `src/core/validate.js`: spec rules. Add a rule here whenever a generator would otherwise break.
 - `src/core/resolve.js`: roles → classes, button class chains, motion attributes.
-- `src/core/tokens.js`: design tokens; `forge.config.js` overrides or maps them to project CSS vars.
+- `src/core/tokens.js`: design tokens; `blokset.config.js` overrides or maps them to project CSS vars.
 - `src/core/css.js`: mobile-first CSS and the shared stylesheets (tokens, utilities, buttons).
 - `src/generators/markup.js`: the single tree emitter used by React, Astro, vanilla and static HTML.
   Add new node features here once rather than per target.
@@ -19,7 +19,7 @@ Pipeline: `components/*.js` (spec) → `src/core/resolve.js` (apply framework pr
 - `src/runtime/motion-core.js`: behaviour runtime, embedded into an ESM build (npm gsap) and a
   global build (CDN gsap). No import/export in that file.
 - `frameworks/*.js`: class-naming profiles. `_template.js` documents the shape.
-- `forge.config.js`: per-project settings (framework, tokens, utilities, button classes).
+- `blokset.config.js`: per-project settings (framework, tokens, utilities, button classes).
 
 Conventions: plain ESM JavaScript with JSDoc types, Node ≥ 20, no runtime deps besides gsap.
 Every change to generators must keep `npm run check` green (tests + strict tsc on React output +

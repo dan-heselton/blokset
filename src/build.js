@@ -15,13 +15,13 @@ const SHARED_INDEX = `@import "./tokens.css";\n@import "./utilities.css";\n@impo
 
 function shared(ctx, { esm }) {
   const css = sharedCss(ctx);
-  const files = Object.fromEntries(Object.entries(css).map(([k, v]) => [`forge-shared/${k}`, v]));
-  files["forge-shared/index.css"] = SHARED_INDEX;
+  const files = Object.fromEntries(Object.entries(css).map(([k, v]) => [`blokset/${k}`, v]));
+  files["blokset/index.css"] = SHARED_INDEX;
   if (esm) {
-    files["forge-shared/motion.js"] = motionEsm();
-    files["forge-shared/motion.d.ts"] = motionDts();
+    files["blokset/motion.js"] = motionEsm();
+    files["blokset/motion.d.ts"] = motionDts();
   } else {
-    files["forge-shared/motion.global.js"] = motionGlobal();
+    files["blokset/motion.global.js"] = motionGlobal();
   }
   return files;
 }
@@ -35,13 +35,13 @@ const demoPage = (title, head, body) => `<!doctype html>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>*,*::before,*::after{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}img{max-width:100%}</style>
-<link rel="stylesheet" href="./forge-shared/index.css">
+<link rel="stylesheet" href="./blokset/index.css">
 ${head}
 </head>
 <body>
 ${body}
 ${gsapCdnTags()}
-<script src="./forge-shared/motion.global.js"></script>
+<script src="./blokset/motion.global.js"></script>
 </body>
 </html>
 `;
@@ -67,7 +67,7 @@ export function targetFiles(specs, ctx, target) {
       files[`${s.id}.css`] = css(s);
     }
     files["index.html"] = demoPage(
-      "Component Forge — HTML",
+      "Blokset — HTML",
       specs.map((s) => `<link rel="stylesheet" href="./${s.id}.css">`).join("\n"),
       specs.map((s) => files[`${s.id}.html`]).join("\n")
     );
@@ -79,7 +79,7 @@ export function targetFiles(specs, ctx, target) {
       files[`${s.id}.css`] = css(s);
     }
     files["index.html"] = demoPage(
-      "Component Forge — Vanilla JS",
+      "Blokset — Vanilla JS",
       specs.map((s) => `<link rel="stylesheet" href="./${s.id}.css">`).join("\n"),
       `<main id="app"></main>
 <script type="module">
@@ -170,12 +170,14 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
   const shared = sharedCss(ctx);
   const galleryDir = join(out, "gallery");
   const variants = variantAssets(specs, config, frameworks);
+  const previewCss = [shared["tokens.css"], shared["utilities.css"], shared["buttons.css"], ...specs.map((s) => componentCss(s, resolveComponent(s, ctx), ctx))].join("\n");
   writeFiles(galleryDir, {
+    "preview.css": previewCss,
     "index.html": renderGallery({
       specs,
       config,
       frameworks: config.frameworks.map((n) => ({ name: n, label: frameworks[n].label })),
-      previewCss: [shared["tokens.css"], shared["utilities.css"], shared["buttons.css"], ...specs.map((s) => componentCss(s, resolveComponent(s, ctx), ctx))].join("\n"),
+      previewCss,
       previews: Object.fromEntries(specs.map((s) => [s.id, generateHtml(s, ctx)])),
       outputs,
       variantPreviews: variants.previews,
@@ -191,6 +193,7 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
   const { readFileSync } = await import("node:fs");
   const inline = (f) => `<script>${readFileSync(join(galleryDir, f), "utf8").replace(/<\/script/gi, "<\\/script")}</script>`;
   const standalone = readFileSync(join(galleryDir, "index.html"), "utf8")
+    .replace('<link rel="stylesheet" href="./preview.css">', () => `<style>${readFileSync(join(galleryDir, "preview.css"), "utf8")}</style>`)
     .replace('<script src="./vendor/gsap.min.js"></script>', () => inline("vendor/gsap.min.js"))
     .replace('<script src="./vendor/ScrollTrigger.min.js"></script>', () => inline("vendor/ScrollTrigger.min.js"))
     .replace('<script src="./motion.global.js"></script>', () => inline("motion.global.js"));

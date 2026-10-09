@@ -133,7 +133,7 @@ export default {
                   },
                   children: [
                     {
-                      tag: "div", key: "value", bind: "item.value", attrs: { "data-forge-count": "" },
+                      tag: "div", key: "value", bind: "item.value", attrs: { "data-blok-count": "" },
                       style: {
                         base: { "margin-bottom": "1.5rem", "font-family": "token(font-display)", "font-size": "4.5rem", "line-height": "1", "font-weight": "500", "letter-spacing": "-0.045em", "font-variant-numeric": "tabular-nums", color: paint.color },
                         md: { "font-size": "5.25rem" },
