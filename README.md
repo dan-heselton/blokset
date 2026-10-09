@@ -96,8 +96,8 @@ export default {
 ```
 
 Webflow renames a pasted class when the project has one with the same name and different styles
-(`button 2`). Matching `utilities` and using `styles: "none"` for buttons avoids that today; reading
-the target site's styles automatically ("class sync") is the planned fix.
+(`button 2`). Matching `utilities`, using `styles: "none"` for buttons, and Class Sync (below) keep
+the paste on the classes the site already has.
 
 ## Adding a framework
 
@@ -111,6 +111,67 @@ class names confirmed against the framework's own cloneable.
 Ask Cursor: *"Create a pricing component with three tiers"*. The rules in `.cursor/rules/` teach
 it the spec format. Then check it at 390px and 1440px in the gallery and run `npm run check`.
 
+## Everything is a prop
+
+Images, optional regions, and layout choices are props. The same spec drives code, a Webflow paste,
+a native-component manifest, and the theme tokens.
+
+| surface | what you get |
+|---|---|
+| Code | React, Astro, and vanilla take the props. A boolean omits its element. Each variant group is a typed prop, and kebab-case group names become camelCase. |
+| Webflow paste | The gallery's Copy to Webflow pastes the combination selected in the component bar. Hidden toggles are left out of the paste. |
+| Native component | `dist/<framework>/webflow/<id>.component.json` maps text, link, boolean, and image props (image plus alt text). Lists are noted as a CMS Collection List. |
+| Tokens | `components/_lib/themes.js` keeps light, dark, and accent on the same slots. `dist/<framework>/webflow/variables.json` is a Forge collection of Color, Size, and FontFamily variables. |
+
+```jsx
+<Features12 theme="dark" showEyebrow={false} />
+```
+
+```js
+import { mount } from "./features-12.js";
+mount("#features-12", { theme: "dark", showEyebrow: false });
+```
+
+| component | images | toggles | variants |
+|---|---|---|---|
+| hero-05 | background (`priority`) | showEyebrow (off) and its text, showButtons | align: left/center · overlay: subtle/medium/strong · height: screen/auto |
+| features-12 | intro image (off) | showEyebrow, showButtons, showImage, showNumbers | theme: light/dark/accent |
+| features-20 | feature card image | showDescription, showStat, showNote, showTags | theme: light/dark · statStyle: accent-card/ink-card/outline-card |
+| stats-04 | wide image (off, 4:3 to 21:9) | showEyebrow, showDescription, showImage | theme: light/dark/accent · columns: four/three |
+| work-02 | image per project | showAllLink, showMeta, showYear, showImages | theme: dark/light/accent · size: large/compact |
+| testimonial-07 | avatar, logo (off) | showEyebrow, showAvatar, showLogo | theme: accent/light/dark · size: large/medium |
+| cta-08 | background image (off) | showStatus, showMarquee, showImage, showButtons | theme: dark/accent/light |
+
+`height: auto` on hero-05 sets the component's `min-height` to `0px` and adds `4rem` of vertical padding. The features-20 note card uses the `card` palette slot, so it stays visible on a dark section.
+
+## Class Sync
+
+Webflow creates `features12_heading 2` when a pasted class does not match the one stored on the site.
+Two things it treats as different, even when the values match: property order, and `font-family` for
+a font the project does not have installed. Forge writes properties in Webflow's stored order, and
+omits `font-family` unless `webflow.fonts` names a font installed on the site. Code outputs still
+use the CSS variables.
+
+```js
+webflow: {
+  snapshot: "../webflow-sync/example.json",
+  fonts: { "font-display": "Inter Tight" },
+}
+```
+
+Export the site's styles with Webflow's `get_styles` (`include_properties: true`, breakpoints
+`main`, `medium`, `small`, `tiny`), then save a snapshot and build with that site's config:
+
+```bash
+node src/cli.js sync styles.json --out webflow-sync/example.json --site <id>
+node src/cli.js build --config sites/example.config.js
+```
+
+`sites/example.config.js` is a Client-First config that builds the Webflow target only. When a
+snapshot is loaded, the build prints `reused N / new 0` per component. A class that exists in the
+snapshot is pasted with that class's stored styles, including breakpoint variants and variable
+references (`@var_variable-…`).
+
 ## Motion runtime
 
 Attributes, not per-component JS, so behaviour is identical in Webflow and code:
@@ -119,7 +180,7 @@ Attributes, not per-component JS, so behaviour is identical in Webflow and code:
 
 ## Roadmap
 
-1. Class/variable sync from a live Webflow site (fixes collisions; needed for Flowkit/Lumos variables)
+1. Push the Forge variable collection into a live Webflow site (class sync already pastes stored styles)
 2. Figma: plugin that builds auto-layout components + variables from the same specs
 3. Tailwind output for React/Astro
 4. shadcn-style registry (`npx shadcn add <url>/hero-05`)

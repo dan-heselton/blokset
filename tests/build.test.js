@@ -337,6 +337,46 @@ test("class sync pastes the snapshot styleLess, including variable refs", () => 
   assert.equal(section.variants.tiny.styleLess, "padding-top: 1rem;");
 });
 
+test("every variant combination renders and its Webflow payload has no dangling class ids", () => {
+  const ctx = createContext(config, frameworks["client-first"]);
+  for (const spec of specs) {
+    const resolved = resolveComponent(spec, ctx);
+    for (const selection of allSelections(spec)) {
+      const key = selectionKey(selection) || "default";
+      assert.match(generateHtml(spec, ctx, resolved, { selection }), /<section/, key);
+      const { payload } = generateWebflow(spec, ctx, resolved, { selection });
+      const nodeIds = new Set(payload.nodes.map((node) => node._id));
+      const styleIds = new Set(payload.styles.map((style) => style._id));
+      for (const node of payload.nodes) {
+        for (const child of node.children || []) assert.ok(nodeIds.has(child), `${spec.id} ${key}`);
+        for (const classId of node.classes || []) assert.ok(styleIds.has(classId), `${spec.id} ${key}`);
+      }
+    }
+  }
+});
+
+test("toggles: all-on markup is longer than all-off", () => {
+  const ctx = createContext(config, frameworks["client-first"]);
+  for (const spec of specs) {
+    const names = Object.entries(spec.props).filter(([, prop]) => prop.type === "boolean").map(([name]) => name);
+    if (!names.length) continue;
+    const resolved = resolveComponent(spec, ctx);
+    const on = renderMarkup(spec, resolved, "static", 0, { values: Object.fromEntries(names.map((name) => [name, true])) });
+    const off = renderMarkup(spec, resolved, "static", 0, { values: Object.fromEntries(names.map((name) => [name, false])) });
+    assert.ok(on.length > off.length, spec.id);
+  }
+});
+
+test("vanilla render and react types honor variants and toggles", async () => {
+  const ctx = createContext(config, frameworks["client-first"]);
+  const spec = specs.find((item) => item.id === "features-12");
+  const resolved = resolveComponent(spec, ctx);
+  const mod = await import(`data:text/javascript,${encodeURIComponent(generateVanilla(spec, ctx, resolved))}`);
+  assert.match(mod.render({ theme: "dark" }), /section_features12 is-dark/);
+  assert.doesNotMatch(mod.render({ showEyebrow: false }), /features12_eyebrow/);
+  assert.match(generateReact(spec, ctx, resolved), /theme: "light" \| "dark" \| "accent";/);
+});
+
 test("project config: styles: none keeps class names but drops button CSS", () => {
   const custom = { ...config, classes: { button: { styles: "none" } } };
   const ctx = createContext(custom, frameworks["client-first"]);
