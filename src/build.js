@@ -2,7 +2,7 @@
 import { mkdirSync, writeFileSync, rmSync, copyFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { ROOT, loadConfig, loadFrameworks, loadComponents, createContext } from "./core/config.js";
-import { resolveComponent, usesRuntime } from "./core/resolve.js";
+import { resolveComponent, usesRuntime, allSelections, selectionKey } from "./core/resolve.js";
 import { sharedCss } from "./core/css.js";
 import { generateReact, generateAstro, generateHtml, generateVanilla, componentCss, pascal } from "./generators/code.js";
 import { generateWebflow } from "./generators/webflow.js";
@@ -99,6 +99,28 @@ ${specs.map((_, i) => `mount${i}("#app");`).join("\n")}
   return files;
 }
 
+/** Static preview per variant combination, plus a Webflow payload for every framework. */
+function variantAssets(specs, config, frameworks) {
+  const previewCtx = createContext(config, frameworks[config.framework]);
+  const contexts = Object.fromEntries(config.frameworks.map((name) => [name, createContext(config, frameworks[name])]));
+  const previews = {};
+  const webflow = {};
+  for (const spec of specs) {
+    const previewResolved = resolveComponent(spec, previewCtx);
+    const resolved = Object.fromEntries(config.frameworks.map((name) => [name, resolveComponent(spec, contexts[name])]));
+    previews[spec.id] = {};
+    webflow[spec.id] = Object.fromEntries(config.frameworks.map((name) => [name, {}]));
+    for (const selection of allSelections(spec)) {
+      const key = selectionKey(selection) || "default";
+      previews[spec.id][key] = generateHtml(spec, previewCtx, previewResolved, { selection });
+      for (const name of config.frameworks) {
+        webflow[spec.id][name][key] = JSON.stringify(generateWebflow(spec, contexts[name], resolved[name], { selection }));
+      }
+    }
+  }
+  return { previews, webflow };
+}
+
 export function writeFiles(dir, files) {
   for (const [rel, content] of Object.entries(files)) {
     const path = join(dir, rel);
@@ -140,6 +162,7 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
   const ctx = createContext(config, frameworks[config.framework]);
   const shared = sharedCss(ctx);
   const galleryDir = join(out, "gallery");
+  const variants = variantAssets(specs, config, frameworks);
   writeFiles(galleryDir, {
     "index.html": renderGallery({
       specs,
@@ -148,6 +171,8 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
       previewCss: [shared["tokens.css"], shared["utilities.css"], shared["buttons.css"], ...specs.map((s) => componentCss(s, resolveComponent(s, ctx), ctx))].join("\n"),
       previews: Object.fromEntries(specs.map((s) => [s.id, generateHtml(s, ctx)])),
       outputs,
+      variantPreviews: variants.previews,
+      variantWebflow: variants.webflow,
       footerCode: webflowFooterCode(),
       dev,
     }),
