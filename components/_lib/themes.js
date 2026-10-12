@@ -59,12 +59,39 @@ export function themeVariant({ default: fallback, options, map, label = "Color t
       buttons: BUTTON_MAPS[name],
     };
   }
+  group.palette = { default: fallback, options: names.slice(), map };
   return group;
 }
 
 /** Four corner radii. Defaults to the radius token. */
 export function radius(value = "token(radius)") {
   return corners(value);
+}
+
+/**
+ * A cutout choice for photograph and card keys. Base styles stay on `token(radius-card)`.
+ * `round` is a circle on a square frame and a pill on a wide one. `arch` is tall on top.
+ * @param {string[]} keys
+ */
+export function shapeVariant(keys) {
+  const round = Object.fromEntries(keys.map((key) => [key, { base: radius("999px") }]));
+  const arch = Object.fromEntries(keys.map((key) => [key, {
+    base: {
+      "border-top-left-radius": "8rem",
+      "border-top-right-radius": "8rem",
+      "border-bottom-left-radius": "0.75rem",
+      "border-bottom-right-radius": "0.75rem",
+    },
+  }]));
+  return {
+    label: "Cutout",
+    default: "soft",
+    options: {
+      soft: null,
+      round: { label: "Round", styles: round },
+      arch: { label: "Arch", styles: arch },
+    },
+  };
 }
 
 /** Four padding longhands. A single value, or `{ top, right, bottom, left }`. */

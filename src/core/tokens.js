@@ -27,6 +27,7 @@ export const defaultTokens = {
   "accent-glow": "rgba(255, 91, 46, 0.25)",
   // Type
   "font-display": "'Inter Tight', system-ui, sans-serif",
+  "font-serif": "'Newsreader', Georgia, serif",
   "font-mono": "ui-monospace, 'SF Mono', Menlo, monospace",
   // Buttons
   "button-bg": "#ffffff",

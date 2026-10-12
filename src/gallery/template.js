@@ -1,7 +1,13 @@
 // Gallery: a catalog you can search and filter, then open for the live preview and copy actions.
 // Chrome classes are prefixed "g-" so they never collide with component classes.
+import { readFileSync } from "node:fs";
 import { camel } from "../core/resolve.js";
 import { pascal } from "../generators/code.js";
+import { animationPrompt } from "../generators/motion-prompt.js";
+import { BUTTON_ROLES } from "./button-classes.js";
+import { assignReleases } from "./releases.js";
+
+const buttonRuntime = readFileSync(new URL("./button-classes.js", import.meta.url), "utf8").replace(/^export /gm, "");
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const jsonForScript = (v) => JSON.stringify(v).replace(/</g, "\\u003c");
 
@@ -13,6 +19,16 @@ const MOTION_DEFS = [
   { id: "marquee", label: "Marquee", test: (_spec, has) => has("data-blok-marquee") },
   { id: "scroll-highlight", label: "Scroll highlight", test: (_spec, _has, is) => is("data-blok-split", "words") },
   { id: "word-rise", label: "Word rise", test: (_spec, _has, is) => is("data-blok-split", "rise") },
+  { id: "char-stagger", label: "Character stagger", test: (_spec, _has, is) => is("data-blok-split", "chars") },
+  { id: "line-reveal", label: "Line reveal", test: (_spec, _has, is) => is("data-blok-split", "lines") },
+  { id: "text-fill", label: "Text fill", test: (_spec, _has, is) => is("data-blok-split", "fill") },
+  { id: "text-scrub", label: "Text scrub", test: (_spec, _has, is) => is("data-blok-split", "scrub") },
+  { id: "scramble", label: "Scramble", test: (_spec, has) => has("data-blok-scramble") },
+  { id: "depth", label: "Depth", test: (_spec, has) => has("data-blok-depth") },
+  { id: "pointer", label: "Pointer parallax", test: (_spec, has) => has("data-blok-pointer") },
+  { id: "zoom", label: "Zoom", test: (_spec, _has, is) => is("data-blok-scroll", "zoom") },
+  { id: "expand-media", label: "Expand media", test: (_spec, has) => has("data-blok-expand-media") },
+  { id: "velocity", label: "Velocity", test: (_spec, has) => has("data-blok-velocity") },
   { id: "clip-reveal", label: "Clip reveal", test: (_spec, has) => has("data-blok-reveal") },
   { id: "image-trail", label: "Image trail", test: (_spec, has) => has("data-blok-trail") },
   { id: "stack", label: "Stack", test: (_spec, has) => has("data-blok-stack") },
@@ -33,10 +49,23 @@ const MOTION_DEFS = [
   { id: "meters", label: "Meters", test: (_spec, has) => has("data-blok-meters") },
   { id: "cycle", label: "Rotating line", test: (_spec, has) => has("data-blok-cycle") },
   { id: "filmstrip", label: "Filmstrip", test: (_spec, has) => has("data-blok-scrub") },
+  { id: "menu", label: "Menu", test: (_spec, has) => has("data-blok-menu") },
+  { id: "dropdown", label: "Dropdown", test: (_spec, has) => has("data-blok-drops") },
+  { id: "slider", label: "Slider", test: (_spec, has) => has("data-blok-slider") },
+  { id: "split-word", label: "Split word", test: (_spec, has) => has("data-blok-open") },
+  { id: "scroll-steps", label: "Scroll steps", test: (_spec, has) => has("data-blok-steps") },
+  { id: "columns", label: "Columns", test: (_spec, has) => has("data-blok-columns") },
+  { id: "deck", label: "Deck", test: (_spec, has) => has("data-blok-deck") },
+  { id: "lens", label: "Lens", test: (_spec, has) => has("data-blok-lens") },
+  { id: "flip", label: "Flip", test: (_spec, has) => has("data-blok-flip") },
+  { id: "read", label: "Read", test: (_spec, has) => has("data-blok-read") },
+  { id: "tilt", label: "Tilt", test: (_spec, has) => has("data-blok-tilt") },
+  { id: "grow", label: "Grow", test: (_spec, has) => has("data-blok-grow") },
 ];
 
 const OUTPUTS = [
   { id: "webflow", label: "Webflow" },
+  { id: "figma", label: "Figma" },
   { id: "react", label: "React" },
   { id: "astro", label: "Astro" },
   { id: "html", label: "HTML" },
@@ -101,6 +130,7 @@ function propsTable(spec) {
 
 function categoryLabel(category) {
   if (category === "cta") return "CTA";
+  if (category === "offgrid") return "Off-grid";
   return category.charAt(0).toUpperCase() + category.slice(1);
 }
 
@@ -114,11 +144,11 @@ const SPECIMEN_WIDTH = 1200;
 const SPECIMEN_HEIGHT = 720;
 
 function specimenSrcdoc(html) {
-  const doc = `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="./preview.css"><style>html,body{margin:0;width:${SPECIMEN_WIDTH}px;height:${SPECIMEN_HEIGHT}px;overflow:hidden;background:#fff}</style></head><body>${stripBlokAttrs(html)}</body></html>`;
+  const doc = `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Newsreader:ital,opsz,wght@1,6..72,560&display=swap"><link rel="stylesheet" href="./preview.css"><style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0;width:${SPECIMEN_WIDTH}px;height:${SPECIMEN_HEIGHT}px;overflow:hidden;background:#fff}</style></head><body>${stripBlokAttrs(html)}</body></html>`;
   return esc(doc);
 }
 
-export function renderGallery({ specs, config, frameworks, previewCss, previews, outputs, variantPreviews, variantWebflow, footerCode, dev }) {
+export function renderGallery({ specs, config, frameworks, previewCss, previews, outputs, variantPreviews, variantWebflow, footerCode, buttons, dev }) {
   const catalog = specs.map((spec) => {
     const motion = motionOf(spec);
     return {
@@ -135,6 +165,9 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
     if (!categories.some((c) => c.id === item.category)) categories.push({ id: item.category, label: item.categoryLabel });
   }
   const motions = MOTION_DEFS.filter((def) => catalog.some((item) => item.motion.some((m) => m.id === def.id))).map(({ id, label }) => ({ id, label }));
+  const releases = assignReleases(catalog.map((item) => item.id));
+  const releaseOf = new Map();
+  for (const release of releases) for (const id of release.ids) if (!releaseOf.has(id)) releaseOf.set(id, release.id);
   const outputsAvailable = OUTPUTS.filter((o) => config.targets.includes(o.id));
   const previewFramework = frameworks.find((f) => f.name === config.framework) || frameworks[0];
   // Component CSS is written to preview.css. The page and specimen iframes both link it.
@@ -152,7 +185,7 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Blokset</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Newsreader:ital,opsz,wght@0,6..72,500;1,6..72,560&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: light;
@@ -183,35 +216,73 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
   .g-skip { position: absolute; left: 12px; top: -40px; z-index: 300; background: var(--g-fg); color: var(--g-bg); padding: 8px 12px; border-radius: 8px; font-weight: 600; text-decoration: none; }
   .g-skip:focus { top: 12px; }
   .g-sticky { position: sticky; top: 0; z-index: 100; background: var(--g-bg); border-bottom: 1px solid var(--g-line); }
-  .g-top { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; padding: 12px 16px 14px; }
+  .g-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 16px; }
   .g-logo { display: flex; align-items: center; gap: 10px; align-self: center; margin-right: auto; color: inherit; text-decoration: none; font-family: "Inter Tight", sans-serif; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
   .g-logo:focus-visible { outline: 2px solid var(--g-fg); outline-offset: 3px; border-radius: 6px; }
   .g-logo-mark { width: 22px; height: 22px; border-radius: 6px; background: var(--g-fg); position: relative; }
   .g-logo-mark::after { content: ""; position: absolute; inset: 6px; border-radius: 2px; background: #ff5b2e; }
   .g-search, .g-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 12px; font-weight: 600; color: var(--g-muted); }
+  .g-top .g-search, .g-top .g-field { flex-direction: row; align-items: center; gap: 6px; white-space: nowrap; }
   .g-search { flex: 1 1 220px; max-width: 420px; }
   .g-search input, .g-select {
-    font: inherit; font-size: 14px; font-weight: 400; color: var(--g-fg); background: var(--g-panel);
-    border: 1px solid var(--g-line); border-radius: 8px; padding: 8px 10px; caret-color: var(--g-fg); width: 100%;
+    font: inherit; font-size: 13px; font-weight: 400; color: var(--g-fg); background: var(--g-panel);
+    border: 1px solid var(--g-line); border-radius: 8px; padding: 5px 8px; caret-color: var(--g-fg); width: 100%;
   }
+  .g-top .g-search input, .g-top .g-select { width: auto; flex: 1 1 120px; min-width: 0; }
   .g-select { padding-right: 28px; max-width: 100%; }
   .g-field { flex: 0 1 180px; }
+  .g-top .g-field { flex: 0 1 auto; }
+  .g-buttons { position: relative; align-self: center; }
+  .g-buttons-panel {
+    position: absolute; z-index: 40; top: calc(100% + 8px); right: 0; width: min(420px, calc(100vw - 32px));
+    background: var(--g-panel); border: 1px solid var(--g-line); border-radius: 12px; padding: 12px;
+    box-shadow: 0 12px 40px rgba(20, 20, 20, 0.12);
+  }
+  .g-buttons-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .g-buttons-label { flex: 0 0 88px; font-size: 12px; font-weight: 600; color: var(--g-muted); }
+  .g-pills { display: flex; flex-wrap: wrap; gap: 4px; }
+  .g-pill { display: inline-flex; align-items: center; gap: 2px; background: var(--g-chip, var(--g-line)); border-radius: 999px; padding: 3px 4px 3px 8px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; font-weight: 500; }
+  .g-pill button { border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; line-height: 1; padding: 0 4px; }
+  .g-pill-input { flex: 1 1 96px; min-width: 96px; font: inherit; font-size: 13px; font-weight: 400; color: var(--g-fg); background: var(--g-panel); border: 1px solid var(--g-line); border-radius: 8px; padding: 6px 8px; }
+  .g-buttons-styles { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 13px; font-weight: 600; color: var(--g-fg); }
+  .g-buttons-note { margin: 6px 0 0; color: var(--g-muted); font-size: 12px; font-weight: 400; }
   .g-search input:focus-visible, .g-select:focus-visible, .g-chip:focus-visible, .g-btn:focus-visible, .g-tab:focus-visible, .g-back:focus-visible, .g-card-open:focus-visible {
     outline: 2px solid var(--g-fg); outline-offset: 2px;
   }
-  .g-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 12px 16px 14px; }
-  .g-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-  .g-filter-label { font-size: 12px; font-weight: 600; color: var(--g-muted); margin-right: 2px; }
+  .g-filters {
+    display: flex; flex-direction: column; align-items: stretch;
+    gap: 8px; padding: 8px 16px 10px;
+  }
+  #g-clear { align-self: flex-start; }
+  .g-filter { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .g-filter.is-overflowing {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+  .g-filter::-webkit-scrollbar { display: none; }
+  .g-filter-label { flex: none; font-size: 11px; font-weight: 600; color: var(--g-muted); margin-right: 4px; }
+  .g-filter-wrap { flex-wrap: wrap; overflow: visible; }
+  .g-filter-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+  .g-menu { position: relative; }
+  .g-menu-panel {
+    position: absolute; z-index: 40; top: calc(100% + 8px); left: 0; width: min(560px, calc(100vw - 32px));
+    background: var(--g-panel); border: 1px solid var(--g-line); border-radius: 12px; padding: 12px;
+    box-shadow: 0 12px 40px rgba(20, 20, 20, 0.12);
+  }
+  .g-picked { display: flex; flex-wrap: wrap; gap: 6px; }
+  .g-picked:empty { display: none; }
   .g-chip, .g-btn, .g-back {
     font: inherit; font-size: 13px; font-weight: 600; color: var(--g-fg); background: transparent;
     border: 1px solid var(--g-line); border-radius: 999px; padding: 6px 10px; cursor: pointer; text-decoration: none;
   }
   .g-chip:hover, .g-btn:hover, .g-back:hover { background: var(--g-chip); }
+  .g-chip { flex: none; font-size: 12px; padding: 4px 10px; }
   .g-chip[aria-pressed="true"] { background: var(--g-fg); color: var(--g-bg); border-color: var(--g-fg); }
-  .g-page-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%; }
+  .g-page-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
   .g-page-head h1, .g-detail-title h1 { margin: 0; font-family: "Inter Tight", sans-serif; font-size: 22px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.15; color: var(--g-fg); }
-  .g-count { margin: 0; font-variant-numeric: tabular-nums; color: var(--g-muted); font-weight: 500; }
-  .g-scope-note { margin: 0; flex-basis: 100%; color: var(--g-muted); font-size: 13px; font-weight: 400; max-width: 68ch; }
+  .g-page-head h1 { font-size: 15px; }
+  .g-count { margin: 0; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--g-muted); font-weight: 500; }
+  .g-scope-note { margin: 0; min-width: 0; color: var(--g-muted); font-size: 12px; font-weight: 400; line-height: 1.35; }
   .g-grid { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 16px; }
   .g-card { min-width: 0; border: 1px solid var(--g-line); border-radius: 14px; background: var(--g-panel); overflow: hidden; }
   .g-card-open { display: flex; flex-direction: column; height: 100%; color: inherit; text-decoration: none; border-radius: 14px; }
@@ -251,6 +322,8 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
   .g-preview { background: #fff; }
   .g-help { margin: 20px 16px 32px; padding: 18px 20px; border: 1px dashed var(--g-line); border-radius: 14px; color: var(--g-muted); font-size: 14px; line-height: 1.6; max-width: 68ch; }
   .g-help h2 { margin: 0 0 6px; color: var(--g-fg); font-size: 15px; font-weight: 600; }
+  .g-help + .g-help { margin-top: 0; }
+  .g-animate-text { margin: 12px 0 0; white-space: pre-wrap; font: inherit; color: var(--g-fg); }
   .g-toast { position: fixed; left: 50%; bottom: 20px; transform: translate(-50%, 12px); opacity: 0; transition: opacity .2s ease, transform .2s ease; z-index: 200;
              background: var(--g-fg); color: var(--g-bg); padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 500; pointer-events: none; }
   .g-toast.is-on { opacity: 1; transform: translate(-50%, 0); }
@@ -288,19 +361,43 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
       ${outputsAvailable.map((o) => `<option value="${esc(o.id)}"${o.id === "webflow" ? " selected" : ""}>${esc(o.label)}</option>`).join("")}
     </select>
   </label>
+  <div class="g-buttons">
+    <button type="button" class="g-btn" id="g-buttons-open" aria-expanded="false" aria-controls="g-buttons-panel">Buttons</button>
+    <div class="g-buttons-panel" id="g-buttons-panel" hidden>
+      ${BUTTON_ROLES.map((role) => `<div class="g-buttons-row" data-role="${esc(role.id)}">
+        <span class="g-buttons-label">${esc(role.label)}</span>
+        <div class="g-pills" data-pills></div>
+        <input class="g-pill-input" aria-label="Add ${esc(role.label)} class" placeholder="Add class" autocomplete="off" spellcheck="false">
+      </div>`).join("")}
+      <label class="g-buttons-styles"><input type="checkbox" id="g-buttons-styles" checked> Blokset styles</label>
+      <p class="g-buttons-note">Off when this project already styles these classes.</p>
+    </div>
+  </div>
 </header>
 <div class="g-filters" id="g-filters">
   <div class="g-page-head">
     <h1>Components</h1>
     <p class="g-count" id="g-count" aria-live="polite"></p>
   </div>
-  <div class="g-filter" role="group" aria-labelledby="g-cat-label">
-    <span class="g-filter-label" id="g-cat-label">Category</span>
-    ${chips("category", categories)}
+  <div class="g-filter" role="group" aria-labelledby="g-release-label">
+    <span class="g-filter-label" id="g-release-label">Release</span>
+    ${chips("release", [...releases].reverse().map(({ id, label }) => ({ id, label })))}
   </div>
-  <div class="g-filter" role="group" aria-labelledby="g-motion-label">
-    <span class="g-filter-label" id="g-motion-label">Motion</span>
-    ${chips("motion", motions)}
+  <div class="g-filter-tools">
+    <div class="g-menu">
+      <button type="button" class="g-btn" id="g-category-open" aria-expanded="false" aria-controls="g-category-panel">Category</button>
+      <div class="g-menu-panel" id="g-category-panel" hidden>
+        <div class="g-filter g-filter-wrap" role="group" aria-label="Category">${chips("category", categories)}</div>
+      </div>
+    </div>
+    <div class="g-picked" id="g-category-picked"></div>
+    <div class="g-menu">
+      <button type="button" class="g-btn" id="g-motion-open" aria-expanded="false" aria-controls="g-motion-panel">Motion</button>
+      <div class="g-menu-panel" id="g-motion-panel" hidden>
+        <div class="g-filter g-filter-wrap" role="group" aria-label="Motion">${chips("motion", motions)}</div>
+      </div>
+    </div>
+    <div class="g-picked" id="g-motion-picked"></div>
   </div>
   <button type="button" class="g-btn" id="g-clear" hidden>Clear search and filters</button>
   <p class="g-scope-note">Class system and output change what you copy. They do not hide components, because every component ships to every output.</p>
@@ -326,7 +423,7 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
   <div id="g-catalog">
     <div class="g-grid" id="g-grid">
       ${catalog.map((item) => `
-      <article class="g-card" data-id="${esc(item.id)}" data-category="${esc(item.category)}" data-motion="${esc(item.motion.map((m) => m.id).join(" "))}" data-search="${esc([item.name, item.id, item.description, item.category, item.categoryLabel, ...item.motion.flatMap((m) => [m.id, m.label])].join(" ").toLowerCase())}">
+      <article class="g-card" data-id="${esc(item.id)}" data-category="${esc(item.category)}" data-motion="${esc(item.motion.map((m) => m.id).join(" "))}"${releaseOf.has(item.id) ? ` data-release="${esc(releaseOf.get(item.id))}"` : ""} data-search="${esc([item.name, item.id, item.description, item.category, item.categoryLabel, ...item.motion.flatMap((m) => [m.id, m.label])].join(" ").toLowerCase())}">
         <a class="g-card-open" href="#${esc(item.id)}" aria-label="Open ${esc(item.name)}">
           <div class="g-specimen" aria-hidden="true"><iframe class="g-specimen-frame" width="${SPECIMEN_WIDTH}" height="${SPECIMEN_HEIGHT}" tabindex="-1" scrolling="no" title="" srcdoc="${specimenSrcdoc(previews[item.id] || "")}"></iframe></div>
           <div class="g-card-meta">
@@ -340,7 +437,7 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
       </article>`).join("\n")}
     </div>
     <div class="g-empty" id="g-empty" hidden>
-      <p>No components match. Clear the search, or the category and motion filters.</p>
+      <p>No components match. Clear the search, or the release, category, and motion filters.</p>
       <button type="button" class="g-btn" id="g-empty-clear">Clear search and filters</button>
     </div>
   </div>
@@ -355,8 +452,14 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
     <div class="g-preview" id="g-detail-preview"></div>
     <div class="g-help">
       <h2>Motion in Webflow</h2>
-      Components with motion use the Blokset runtime. Paste this once into Site settings → Custom code → Footer.
+      Components with motion share one runtime. Paste this once into Site settings → Custom code → Footer. Delete any older footer snippet first.
       <div style="margin-top:10px"><button type="button" class="g-btn" id="g-copy-footer">Copy footer code</button></div>
+    </div>
+    <div class="g-help" id="g-animate">
+      <h2>Animation prompt</h2>
+      For this component only. Paste it into Webflow or another builder to recreate the motion on a section that is already laid out.
+      <pre class="g-animate-text" id="g-animate-text"></pre>
+      <div style="margin-top:10px"><button type="button" class="g-btn" id="g-copy-animate">Copy animation prompt</button></div>
     </div>
   </div>
 </main>
@@ -374,6 +477,7 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
       name: spec.name,
       pascal: pascal(spec.id),
       propsText: propsTable(spec),
+      animationPrompt: animationPrompt(spec),
       variants: Object.entries(spec.variants || {}).map(([group, def]) => ({
         group,
         ident: camel(group),
@@ -384,7 +488,18 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
     }])),
     previews: variantPreviews || {},
     webflow: variantWebflow || {},
+    buttons: buttons || {
+      previewFramework: config.framework,
+      roles: BUTTON_ROLES,
+      chains: {},
+      shipStyles: true,
+      synced: {},
+      preview: { base: "", variants: {} },
+    },
   })}</script>
+<script>
+${buttonRuntime}
+</script>
 <script>
 (function () {
   var data = JSON.parse(document.getElementById("g-data").textContent);
@@ -412,6 +527,128 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
   var toastTimer;
   var quote = String.fromCharCode(34);
   var newline = String.fromCharCode(10);
+  var buttonsOpen = document.getElementById("g-buttons-open");
+  var buttonsPanel = document.getElementById("g-buttons-panel");
+  var buttonsStyles = document.getElementById("g-buttons-styles");
+  var buttonState = {};
+  try { buttonState = JSON.parse(sessionStorage.getItem("blokset-buttons") || "{}"); } catch (err) { buttonState = {}; }
+
+  function cloneChains(chains) {
+    var next = {};
+    (data.buttons.roles || []).forEach(function (role) {
+      next[role.id] = (chains && chains[role.id] ? chains[role.id] : []).slice();
+    });
+    return next;
+  }
+  function defaultsFor(fw) {
+    return { chains: cloneChains(data.buttons.chains[fw]), shipStyles: data.buttons.shipStyles !== false };
+  }
+  function ensureButtons() {
+    var fw = framework.value;
+    if (!buttonState[fw]) buttonState[fw] = defaultsFor(fw);
+    return buttonState[fw];
+  }
+  function buttonOptions() {
+    var current = ensureButtons();
+    return {
+      from: data.buttons.chains[framework.value] || {},
+      to: current.chains,
+      shipStyles: current.shipStyles !== false,
+      synced: (data.buttons.synced && data.buttons.synced[framework.value]) || [],
+    };
+  }
+  function presentBundle(bundle) {
+    if (!bundle || !data.buttons) return bundle;
+    return applyButtonClasses(bundle, buttonOptions());
+  }
+  function presentWebflow(payload) {
+    if (!payload || !data.buttons) return payload;
+    return rewriteWebflow(payload, buttonOptions());
+  }
+  function applyPreviewStyles() {
+    if (!data.buttons || !data.buttons.preview) return;
+    var from = data.buttons.chains[data.buttons.previewFramework] || {};
+    var to = ensureButtons().chains;
+    rewritePreviewClasses(preview, from, to);
+    var style = document.getElementById("g-button-preview");
+    if (!style) {
+      style = document.createElement("style");
+      style.id = "g-button-preview";
+      document.head.appendChild(style);
+    }
+    style.textContent = previewButtonCss(data.buttons.preview, to);
+  }
+  function renderButtonPanel() {
+    var current = ensureButtons();
+    (data.buttons.roles || []).forEach(function (role) {
+      var row = document.querySelector('.g-buttons-row[data-role="' + role.id + '"]');
+      if (!row) return;
+      var host = row.querySelector("[data-pills]");
+      host.replaceChildren();
+      (current.chains[role.id] || []).forEach(function (name, index) {
+        var pill = document.createElement("span");
+        pill.className = "g-pill";
+        pill.appendChild(document.createTextNode(name));
+        var remove = document.createElement("button");
+        remove.type = "button";
+        remove.setAttribute("aria-label", "Remove " + name);
+        remove.textContent = "×";
+        remove.addEventListener("click", function () {
+          if (current.chains[role.id].length < 2) return;
+          current.chains[role.id].splice(index, 1);
+          commitButtons();
+        });
+        pill.appendChild(remove);
+        host.appendChild(pill);
+      });
+    });
+    buttonsStyles.checked = current.shipStyles !== false;
+  }
+  function commitButtons() {
+    sessionStorage.setItem("blokset-buttons", JSON.stringify(buttonState));
+    renderButtonPanel();
+    if (currentId) {
+      mountPreview();
+      if (codePanel.classList.contains("is-open")) renderCode();
+    }
+  }
+  function addButtonClass(role, raw) {
+    var name = String(raw || "").trim().replace(/[^A-Za-z0-9_-]/g, "");
+    if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(name)) return;
+    ensureButtons().chains[role].push(name);
+    commitButtons();
+  }
+  buttonsOpen.addEventListener("click", function () {
+    var open = buttonsPanel.hidden;
+    buttonsPanel.hidden = !open;
+    buttonsOpen.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  document.addEventListener("click", function (e) {
+    if (!buttonsPanel.hidden && !e.target.closest(".g-buttons")) {
+      buttonsPanel.hidden = true;
+      buttonsOpen.setAttribute("aria-expanded", "false");
+    }
+  });
+  buttonsPanel.addEventListener("keydown", function (e) {
+    var input = e.target.closest(".g-pill-input");
+    if (!input) return;
+    var role = input.closest(".g-buttons-row").dataset.role;
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      addButtonClass(role, input.value.replace(/,/g, ""));
+      input.value = "";
+    } else if (e.key === "Backspace" && !input.value) {
+      var chain = ensureButtons().chains[role];
+      if (chain.length < 2) return;
+      chain.pop();
+      commitButtons();
+    }
+  });
+  buttonsStyles.addEventListener("change", function () {
+    ensureButtons().shipStyles = buttonsStyles.checked;
+    sessionStorage.setItem("blokset-buttons", JSON.stringify(buttonState));
+    if (codePanel.classList.contains("is-open")) renderCode();
+  });
 
   function toast(msg) {
     toastEl.textContent = msg;
@@ -437,15 +674,17 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
     });
   }
   function filtered() {
-    return !!(search.value.trim() || selected("category").length || selected("motion").length);
+    return !!(search.value.trim() || selected("release").length || selected("category").length || selected("motion").length);
   }
   function apply() {
     var q = search.value.trim().toLowerCase();
+    var release = selected("release");
     var cats = selected("category");
     var motions = selected("motion");
     var shown = 0;
     document.querySelectorAll(".g-card").forEach(function (card) {
       var ok = !q || card.dataset.search.indexOf(q) !== -1;
+      if (ok && release.length && release.indexOf(card.dataset.release || "") === -1) ok = false;
       if (ok && cats.length && cats.indexOf(card.dataset.category) === -1) ok = false;
       if (ok && motions.length) {
         var tags = (card.dataset.motion || "").split(" ").filter(Boolean);
@@ -460,12 +699,35 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
       : (shown === 0 ? "No components" : shown + " of " + total);
     empty.hidden = shown !== 0;
     clearBtn.hidden = !isFiltered;
+    renderPicked();
+  }
+  function renderPicked() {
+    [["category", "g-category-picked"], ["motion", "g-motion-picked"]].forEach(function (pair) {
+      var host = document.getElementById(pair[1]);
+      host.replaceChildren();
+      selected(pair[0]).forEach(function (value) {
+        var source = document.querySelector('[data-filter="' + pair[0] + '"][data-value="' + CSS.escape(value) + '"]');
+        var chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "g-chip";
+        chip.textContent = (source ? source.textContent : value) + " ×";
+        chip.setAttribute("aria-label", "Remove " + (source ? source.textContent : value));
+        chip.addEventListener("click", function () {
+          setPressed(pair[0], selected(pair[0]).filter(function (item) { return item !== value; }));
+          apply();
+          writeUrl(currentId, false);
+        });
+        host.appendChild(chip);
+      });
+    });
   }
   function urlFor(id) {
     var params = new URLSearchParams();
     if (search.value.trim()) params.set("q", search.value.trim());
+    var release = selected("release");
     var cats = selected("category");
     var motions = selected("motion");
+    if (release.length) params.set("release", release.join(","));
     if (cats.length) params.set("category", cats.join(","));
     if (motions.length) params.set("motion", motions.join(","));
     if (framework.value !== data.defaultFramework) params.set("framework", framework.value);
@@ -489,8 +751,8 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
   }
   function syncPrimary() {
     var label = data.outputLabels[output.value] || output.value;
-    copyPrimary.textContent = output.value === "webflow" ? "Copy to Webflow" : "Copy " + label;
-    if (output.value !== "webflow" && output.value !== "css" && activeTab !== "usage" && activeTab !== "props") activeTab = output.value;
+    copyPrimary.textContent = output.value === "webflow" ? "Copy to Webflow" : output.value === "figma" ? "Copy for Figma" : "Copy " + label;
+    if (output.value !== "webflow" && output.value !== "figma" && output.value !== "css" && activeTab !== "usage" && activeTab !== "props") activeTab = output.value;
     document.querySelectorAll(".g-tab").forEach(function (tab) {
       tab.setAttribute("aria-selected", tab.dataset.tab === activeTab ? "true" : "false");
     });
@@ -542,6 +804,7 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
     if (!tpl) tpl = document.getElementById("tpl-" + currentId);
     teardownPreview();
     if (tpl) preview.appendChild(tpl.content.cloneNode(true));
+    applyPreviewStyles();
     if (window.Blokset) window.Blokset.init(preview);
   }
   function usageText() {
@@ -564,7 +827,7 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
     if (!currentId) return "";
     if (activeTab === "usage") return usageText();
     if (activeTab === "props") return (data.components[currentId] && data.components[currentId].propsText) || "";
-    var bundle = currentBundle();
+    var bundle = presentBundle(currentBundle());
     return bundle ? (bundle[activeTab] || "") : "";
   }
   function renderCode() {
@@ -580,6 +843,7 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
     filters.hidden = true;
     detail.hidden = false;
     detailTop.hidden = false;
+    document.getElementById("g-animate-text").textContent = spec.animationPrompt || "";
     document.getElementById("g-detail-heading").textContent = spec.name;
     document.getElementById("g-detail-id").textContent = id;
     document.title = spec.name + " — Blokset";
@@ -609,6 +873,7 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
   }
   function clearFind() {
     search.value = "";
+    setPressed("release", []);
     setPressed("category", []);
     setPressed("motion", []);
     apply();
@@ -618,6 +883,7 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
   function readUrl() {
     var params = new URLSearchParams(location.search);
     search.value = params.get("q") || "";
+    setPressed("release", known("release", (params.get("release") || "").split(",").filter(Boolean)));
     setPressed("category", known("category", (params.get("category") || "").split(",").filter(Boolean)));
     setPressed("motion", known("motion", (params.get("motion") || "").split(",").filter(Boolean)));
     var fw = params.get("framework");
@@ -661,6 +927,29 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
     apply();
     writeUrl(currentId, false);
   });
+  var menus = [
+    { open: document.getElementById("g-category-open"), panel: document.getElementById("g-category-panel") },
+    { open: document.getElementById("g-motion-open"), panel: document.getElementById("g-motion-panel") },
+  ];
+  function closeMenus(except) {
+    menus.forEach(function (menu) {
+      if (menu === except) return;
+      menu.panel.hidden = true;
+      menu.open.setAttribute("aria-expanded", "false");
+    });
+  }
+  menus.forEach(function (menu) {
+    menu.open.addEventListener("click", function () {
+      var open = menu.panel.hidden;
+      closeMenus(menu);
+      menu.panel.hidden = !open;
+      menu.open.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  });
+  document.addEventListener("click", function (e) {
+    if (e.target.closest(".g-menu")) return;
+    closeMenus();
+  });
   clearBtn.addEventListener("click", clearFind);
   document.getElementById("g-empty-clear").addEventListener("click", clearFind);
   catalog.addEventListener("click", function (e) {
@@ -676,6 +965,8 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
   framework.addEventListener("change", function () {
     syncNote();
     syncPrimary();
+    renderButtonPanel();
+    if (currentId) mountPreview();
     if (codePanel.classList.contains("is-open")) renderCode();
     writeUrl(currentId, false);
     toast("Copy now uses " + framework.options[framework.selectedIndex].text);
@@ -728,13 +1019,27 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
     if (output.value === "webflow") {
       var key = currentSelectionKey();
       var table = data.webflow && data.webflow[currentId] && data.webflow[currentId][framework.value];
-      var payload = (table && table[key]) || bundle.webflow;
+      var payload = presentWebflow((table && table[key]) || bundle.webflow);
       var ok = copyWith("application/json", payload);
       statusEl.textContent = ok ? label + " copied" : "";
       toast(ok ? "Copied (" + framework.options[framework.selectedIndex].text + "). Paste into the Webflow Designer." : "Copy was blocked. Open this page in a normal browser tab.");
       return;
     }
-    copyText(bundle[output.value] || "").then(function (ok) {
+    if (output.value === "figma") {
+      var spec = data.components[currentId];
+      var selection = {};
+      (spec.variants || []).forEach(function (group) {
+        var select = document.querySelector("[data-variant=" + quote + group.group + quote + "]");
+        selection[group.group] = select ? select.value : group.default;
+      });
+      var figmaPayload = JSON.stringify({ blokset: currentId, framework: framework.value, selection: selection }, null, 2);
+      copyText(figmaPayload).then(function (ok) {
+        statusEl.textContent = ok ? "Figma copied" : "";
+        toast(ok ? "Copied for Figma. Paste it into the Blokset plugin." : "Copy was blocked");
+      });
+      return;
+    }
+    copyText(presentBundle(bundle)[output.value] || "").then(function (ok) {
       statusEl.textContent = ok ? label + " copied" : "";
       toast(ok ? label + " copied" : "Copy was blocked");
     });
@@ -746,7 +1051,21 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
   document.getElementById("g-copy-footer").addEventListener("click", function () {
     copyText(data.footerCode).then(function (ok) { toast(ok ? "Footer code copied" : "Copy was blocked"); });
   });
+  document.getElementById("g-copy-animate").addEventListener("click", function () {
+    var spec = data.components[currentId];
+    copyText(spec && spec.animationPrompt || "").then(function (ok) { toast(ok ? "Animation prompt copied" : "Copy was blocked"); });
+  });
   document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && menus.some(function (menu) { return !menu.panel.hidden; })) {
+      closeMenus();
+      return;
+    }
+    if (e.key === "Escape" && !buttonsPanel.hidden) {
+      buttonsPanel.hidden = true;
+      buttonsOpen.setAttribute("aria-expanded", "false");
+      buttonsOpen.focus();
+      return;
+    }
     if (e.key !== "Escape" || !currentId) return;
     if (codePanel.classList.contains("is-open")) {
       codePanel.classList.remove("is-open");
@@ -756,8 +1075,27 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
     }
     showCatalog(true);
   });
-  window.addEventListener("popstate", readUrl);
+  window.addEventListener("popstate", function () {
+    readUrl();
+    renderButtonPanel();
+    if (currentId) mountPreview();
+  });
+  function markFilterOverflow() {
+    var rows = filters.querySelectorAll(".g-filter:not(.g-filter-wrap)");
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var more = row.scrollWidth - row.clientWidth - row.scrollLeft > 1;
+      row.classList.toggle("is-overflowing", more);
+    }
+  }
+  var filterRows = filters.querySelectorAll(".g-filter");
+  for (var fi = 0; fi < filterRows.length; fi++) filterRows[fi].addEventListener("scroll", markFilterOverflow);
+  window.addEventListener("resize", markFilterOverflow);
+  if (document.fonts) document.fonts.ready.then(markFilterOverflow);
+  window.addEventListener("load", markFilterOverflow);
+  renderButtonPanel();
   readUrl();
+  markFilterOverflow();
 })();
 </script>
 <script src="./vendor/gsap.min.js"></script>

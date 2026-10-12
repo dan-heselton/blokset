@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadConfig, loadFrameworks, loadComponents } from "../src/core/config.js";
 import { motionOf, renderGallery } from "../src/gallery/template.js";
+import { animationPrompt } from "../src/generators/motion-prompt.js";
+import { assignReleases } from "../src/gallery/releases.js";
 
 const config = await loadConfig();
 const frameworks = await loadFrameworks();
@@ -17,8 +19,19 @@ test("motion tags follow the spec, and entrance is not a filter", () => {
   assert.ok(byId["testimonial-07"].includes("scroll-highlight"));
   assert.ok(byId["cta-08"].includes("marquee"));
   assert.ok(byId["tabs-01"].includes("tabs"));
+  assert.ok(byId["work-08"].includes("tabs"));
   assert.ok(byId["carousel-01"].includes("carousel"));
   assert.ok(byId["filter-01"].includes("filter"));
+  assert.ok(byId["careers-07"].includes("filter"));
+  assert.ok(byId["careers-07"].includes("hover-reveal"));
+  assert.ok(byId["careers-08"].includes("filter"));
+  assert.ok(byId["careers-08"].includes("tilt"));
+  assert.ok(byId["careers-09"].includes("accordion"));
+  assert.ok(byId["careers-10"].includes("accordion"));
+  assert.ok(byId["careers-11"].includes("deck"));
+  assert.ok(byId["careers-13"].includes("accordion"));
+  assert.ok(byId["careers-14"].includes("tabs"));
+  assert.ok(byId["careers-16"].includes("flip"));
   assert.ok(byId["features-31"].includes("spotlight"));
   assert.ok(byId["features-35"].includes("expand"));
   assert.ok(byId["gallery-08"].includes("lightbox"));
@@ -26,7 +39,73 @@ test("motion tags follow the spec, and entrance is not a filter", () => {
   assert.ok(byId["stats-08"].includes("meters"));
   assert.ok(byId["hero-18"].includes("cycle"));
   assert.ok(byId["gallery-11"].includes("filmstrip"));
+  assert.ok(byId["hero-21"].includes("char-stagger"));
+  assert.ok(byId["hero-21"].includes("parallax"));
+  assert.ok(byId["hero-23"].includes("depth"));
+  assert.ok(byId["hero-25"].includes("pointer"));
+  assert.ok(byId["hero-25"].includes("line-reveal"));
+  assert.ok(byId["statement-01"].includes("text-fill"));
+  assert.ok(byId["statement-03"].includes("line-reveal"));
+  assert.ok(byId["cta-11"].includes("scramble"));
+  assert.ok(byId["cta-12"].includes("text-scrub"));
+  assert.ok(byId["cta-12"].includes("fit-text"));
+  assert.ok(byId["gallery-14"].includes("depth"));
+  assert.ok(byId["features-40"].includes("expand-media"));
+  assert.ok(byId["features-40"].includes("zoom"));
+  assert.ok(byId["logos-05"].includes("velocity"));
+  assert.ok(byId["testimonial-11"].includes("marquee"));
+  assert.ok(byId["team-03"].includes("hover-reveal"));
+  assert.ok(byId["nav-01"].includes("menu"));
+  assert.ok(byId["nav-02"].includes("menu"));
+  assert.ok(byId["nav-04"].includes("dropdown"));
+  assert.ok(byId["nav-05"].includes("dropdown"));
+  assert.ok(byId["nav-06"].includes("swap"));
+  assert.ok(byId["timeline-03"].includes("progress"));
+  assert.ok(byId["timeline-05"].includes("horizontal-scroll"));
+  assert.ok(byId["timeline-06"].includes("slider"));
+  assert.ok(byId["carousel-02"].includes("slider"));
+  assert.ok(byId["carousel-03"].includes("slider"));
+  assert.ok(byId["features-44"].includes("zoom"));
+  assert.ok(byId["services-01"].includes("hover-reveal"));
+  assert.ok(byId["team-06"].includes("horizontal-scroll"));
+  assert.ok(byId["hero-26"].includes("split-word"));
+  assert.ok(byId["hero-27"].includes("scroll-steps"));
+  assert.ok(byId["features-45"].includes("columns"));
+  assert.ok(byId["features-46"].includes("deck"));
+  assert.ok(byId["features-47"].includes("lens"));
+  assert.ok(byId["features-48"].includes("accordion"));
+  assert.ok(byId["features-49"].includes("scroll-steps"));
+  assert.ok(byId["features-50"].includes("accordion"));
+  assert.ok(byId["features-51"].includes("flip"));
+  assert.ok(byId["features-52"].includes("read"));
   for (const tags of Object.values(byId)) assert.equal(tags.includes("entrance"), false);
+});
+
+test("each component has its own animation prompt", () => {
+  const stack = animationPrompt(specs.find((spec) => spec.id === "process-03"));
+  assert.match(stack, /Animate only "Process \/ Stacking Cards" \(process-03\)/);
+  assert.match(stack, /scale the card underneath from 1 to 0\.94/);
+  assert.match(stack, /Opacity stays 1/);
+  assert.equal(stack.includes("Marquee"), false);
+  const features = animationPrompt(specs.find((spec) => spec.id === "features-03"));
+  assert.match(features, /features-03/);
+  assert.equal(features.includes("process-03"), false);
+  assert.match(features, /"card"/);
+  const html = renderGallery({
+    specs: specs.filter((spec) => spec.id === "process-03"),
+    config,
+    frameworks: config.frameworks.map((name) => ({ name, label: frameworks[name].label })),
+    previewCss: "",
+    previews: { "process-03": "<section></section>" },
+    outputs: {},
+    footerCode: "FOOT",
+    dev: false,
+  });
+  assert.match(html, /id="g-copy-animate"/);
+  assert.match(html, /id="g-animate-text"/);
+  assert.equal(html.includes('data-tab="animate"'), false);
+  assert.match(html, /scale the card underneath from 1 to 0\.94/);
+  assert.equal(html.includes("logos-02"), false);
 });
 
 test("catalog can be searched and filtered, and specimens do not run motion", () => {
@@ -46,8 +125,37 @@ test("catalog can be searched and filtered, and specimens do not run motion", ()
   assert.match(catalog, /id="g-search"/);
   assert.match(catalog, /data-filter="category"/);
   assert.match(catalog, /data-filter="motion"/);
+  assert.match(catalog, /data-filter="release"/);
+  assert.match(catalog, />Release 7</);
+  assert.match(catalog, />Release 1</);
+  assert.doesNotMatch(catalog, />Unpushed</);
+  assert.doesNotMatch(catalog, />Oct 8</);
+  assert.match(catalog, /id="g-category-open"/);
+  assert.match(catalog, /id="g-category-panel"/);
+  assert.match(catalog, /id="g-motion-open"/);
+  assert.match(catalog, /id="g-motion-panel"/);
+  const releases = assignReleases(specs.map((spec) => spec.id));
+  const releaseOf = new Map();
+  for (const release of releases) for (const id of release.ids) if (!releaseOf.has(id)) releaseOf.set(id, release.id);
+  assert.equal(releaseOf.get("hero-05"), "1");
+  assert.equal(releaseOf.get("hero-45"), "7");
+  assert.equal(releases.length, 7);
+  for (const spec of specs) {
+    const card = catalog.match(new RegExp(`<article class="g-card" data-id="${spec.id}"[^>]*>`));
+    assert.ok(card, spec.id);
+    const release = releaseOf.get(spec.id);
+    if (release) assert.match(card[0], new RegExp(`data-release="${release}"`));
+    else assert.doesNotMatch(card[0], /data-release=/);
+  }
   assert.match(catalog, /id="g-framework"/);
   assert.match(catalog, /id="g-output"/);
+  assert.match(catalog, /id="g-buttons-open"/);
+  assert.match(catalog, /id="g-buttons-panel"/);
+  assert.match(catalog, /Primary/);
+  assert.match(catalog, /Dark/);
+  assert.match(catalog, /Secondary/);
+  assert.match(catalog, /On inverse/);
+  assert.match(catalog, /Blokset styles/);
   assert.match(catalog, /id="g-variants"/);
   assert.match(catalog, /class="g-specimen-frame"/);
   assert.match(catalog, /width="1200"/);
