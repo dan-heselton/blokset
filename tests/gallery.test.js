@@ -124,6 +124,9 @@ test("catalog can be searched and filtered, and specimens do not run motion", ()
   const templates = parts.slice(1).join("<template");
   assert.match(catalog, /id="g-search"/);
   assert.match(catalog, /href="\/pricing#library"/);
+  assert.match(catalog, /href="\/compare"/);
+  assert.match(catalog, /Webflow component gallery — Blokset/);
+  assert.match(catalog, /rel="canonical" href="https:\/\/blokset\.dev\/gallery"/);
   assert.match(catalog, /aria-current="page">Gallery/);
   const cardOf = (id) => catalog.split(`<article class="g-card" data-id="${id}"`)[1].split("<article")[0];
   const heroCard = cardOf("hero-18");

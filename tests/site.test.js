@@ -22,11 +22,14 @@ test("the free set is twenty real sections", () => {
 
 test("home states the product and links into the gallery", () => {
   const html = renderMarketing({ specs, ctx, page: "home" });
-  assert.match(html, /<title>Blokset<\/title>/);
+  assert.match(html, /<title>Blokset — Webflow components that keep your classes<\/title>/);
+  assert.match(html, /rel="canonical" href="https:\/\/blokset\.dev\/"/);
+  assert.match(html, /property="og:title"/);
   assert.match(html, /Paste the section\. Keep your classes\./);
-  assert.match(html, /The same section in Webflow, Figma, and code, on the classes the site already has\./);
+  assert.match(html, /comparing Relume, Flowbase, BRIX/);
   assert.match(html, /A button named button stays button\./);
   assert.match(html, /href="\/gallery"/);
+  assert.match(html, /href="\/compare"/);
   assert.match(html, /href="\/pricing"/);
   assert.match(html, /blokset add hero-05 --target react/);
   assert.match(html, /20 sections copy free/);
@@ -34,6 +37,7 @@ test("home states the product and links into the gallery", () => {
   assert.match(html, /The same section\./);
   assert.match(html, /Same button\. The class the site already has\./);
   assert.match(html, /Webflow does not get to name it button 2\./);
+  assert.match(html, /"@type":"SoftwareApplication"/);
   assert.equal(html.includes("One button, three class systems"), false);
   assert.equal(html.includes("Most popular"), false);
   assert.equal(html.includes("hello@studio.co"), false);
@@ -65,6 +69,8 @@ test("home screenshots exist and open their section in the gallery", () => {
 
 test("pricing lists the three plans and the library form", () => {
   const html = renderMarketing({ specs, ctx, page: "pricing" });
+  assert.match(html, /<title>Pricing — Blokset Webflow component library<\/title>/);
+  assert.match(html, /rel="canonical" href="https:\/\/blokset\.dev\/pricing"/);
   assert.match(html, /Free to paste\. Paid for the library\./);
   assert.match(html, />Free</);
   assert.match(html, />Solo</);
@@ -78,5 +84,23 @@ test("pricing lists the three plans and the library form", () => {
   assert.match(html, /id="library"/);
   assert.match(html, /Billing is not open yet/);
   assert.match(html, /Redistributing the library/);
+  assert.match(html, /How is Blokset different from Relume or Flowbase/);
+  assert.match(html, /"@type":"FAQPage"/);
   assert.equal(html.includes("Most popular"), false);
+});
+
+test("compare page stacks Blokset against Relume, Flowbase, and BRIX", () => {
+  const html = renderMarketing({ specs, ctx, page: "compare" });
+  assert.match(html, /<title>Blokset vs Relume, Flowbase, and BRIX — Webflow components<\/title>/);
+  assert.match(html, /rel="canonical" href="https:\/\/blokset\.dev\/compare"/);
+  assert.match(html, /Same job as Relume\. Different paste\./);
+  assert.match(html, /Relume Library/);
+  assert.match(html, /Flowbase/);
+  assert.match(html, /BRIX Templates/);
+  assert.match(html, /Class Sync/);
+  assert.match(html, /id="matrix"/);
+  assert.match(html, /Is Blokset a Relume alternative/);
+  assert.match(html, /aria-current="page">Compare/);
+  assert.match(html, /href="\/gallery"/);
+  assert.match(html, /"@type":"FAQPage"/);
 });

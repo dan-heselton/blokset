@@ -15,6 +15,7 @@ import { componentManifest, variablesManifest } from "./generators/webflow-manif
 import { motionEsm, motionDts, motionGlobal, webflowFooterCode, gsapCdnTags } from "./runtime/build-runtime.js";
 import { renderGallery, specimenDocument } from "./gallery/template.js";
 import { MARKETING_IDS, renderMarketing } from "./site/pages.js";
+import { robotsTxt, sitemapXml } from "./site/seo.js";
 
 const SHARED_INDEX = `@import "./tokens.css";\n@import "./utilities.css";\n@import "./buttons.css";\n`;
 
@@ -230,6 +231,7 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
     "site.css": sheet(siteSpecs),
     "index.html": renderMarketing({ ...marketing, page: "home" }),
     "pricing.html": renderMarketing({ ...marketing, page: "pricing" }),
+    "compare.html": renderMarketing({ ...marketing, page: "compare" }),
     "gallery.html": renderGallery({
       specs,
       config,
@@ -244,6 +246,8 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
       dev,
     }),
     "motion.global.js": motionGlobal(),
+    "robots.txt": robotsTxt(),
+    "sitemap.xml": sitemapXml(),
     // No _redirects: Cloudflare Pages already serves gallery.html at /gallery
     // (and strips .html). Rewrites here cause ERR_TOO_MANY_REDIRECTS.
     // Netlify pretty URLs live in netlify.toml; local `blokset dev` uses ROUTES.
@@ -272,7 +276,7 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
   const pluginDir = join(ROOT, "figma-plugin");
   mkdirSync(pluginDir, { recursive: true });
   writeFileSync(join(pluginDir, "code.js"), readSource(join(ROOT, "src/figma-runtime/builder.js"), "utf8"));
-  log(`✓ gallery        ${specs.length} components → dist/gallery/ (home, pricing, gallery)`);
+  log(`✓ gallery        ${specs.length} components → dist/gallery/ (home, pricing, compare, gallery)`);
   log(`✓ figma          ${specs.length} components → dist/<framework>/figma/`);
   return { config, specs };
 }

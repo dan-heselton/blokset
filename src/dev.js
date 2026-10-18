@@ -8,7 +8,7 @@ import { spawn } from "node:child_process";
 import { ROOT } from "./core/config.js";
 
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" };
-const ROUTES = { "/": "/index.html", "/pricing": "/pricing.html", "/gallery": "/gallery.html" };
+const ROUTES = { "/": "/index.html", "/pricing": "/pricing.html", "/gallery": "/gallery.html", "/compare": "/compare.html" };
 
 function figmaPath(url) {
   const rest = url.slice("/figma/".length);

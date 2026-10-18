@@ -5,13 +5,22 @@ import { generateHtml } from "../generators/code.js";
 import { escapeHtml } from "../generators/markup.js";
 import { FREE_IDS } from "./free.js";
 import { SHOT_IDS } from "./shots.js";
+import {
+  SITE_URL,
+  compareSeo,
+  homeSeo,
+  jsonLd,
+  pricingSeo,
+  siteHead,
+} from "./seo.js";
 
 const HOME_IDS = ["hero-14", "gallery-05", "logos-02", "features-46", "process-03", "cta-12", "footer-04"];
 const OUTPUTS = [["webflow", "Webflow"], ["figma", "Figma"], ["react", "React"], ["astro", "Astro"], ["html", "HTML"], ["javascript", "Vanilla JS"]];
 const PRICING_IDS = ["pricing-06", "logos-05", "faq-04", "footer-04"];
+const COMPARE_IDS = ["hero-14", "features-46", "faq-04", "cta-12", "footer-04"];
 
 /** Specs whose CSS the marketing pages need. */
-export const MARKETING_IDS = [...new Set([...HOME_IDS, ...PRICING_IDS])];
+export const MARKETING_IDS = [...new Set([...HOME_IDS, ...PRICING_IDS, ...COMPARE_IDS])];
 
 const esc = escapeHtml;
 
@@ -82,6 +91,22 @@ const CHROME = `
   .g-entry button:hover { opacity: 0.88; }
   .g-entry button:disabled { opacity: 0.5; cursor: progress; }
   .g-status { min-height: 1.5em; margin: 18px 0 0; font-size: 16px; font-weight: 600; }
+  .g-compare { padding: 4rem 20px 5rem; background: var(--g-bg); border-bottom: 1px solid var(--g-line); }
+  .g-compare-inner { max-width: 68rem; margin: 0 auto; }
+  .g-compare h2 { margin: 0 0 0.75rem; font-family: "Inter Tight", sans-serif; font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
+  .g-compare > .g-compare-inner > p { margin: 0 0 2rem; max-width: 40rem; color: var(--g-muted); font-size: 1.0625rem; line-height: 1.55; }
+  .g-compare-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--g-line); border-radius: 14px; background: var(--g-panel); }
+  .g-compare-table { width: 100%; min-width: 44rem; border-collapse: collapse; font-size: 14px; }
+  .g-compare-table th, .g-compare-table td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--g-line); vertical-align: top; }
+  .g-compare-table th { font-family: "Inter Tight", sans-serif; font-weight: 600; font-size: 13px; letter-spacing: -0.01em; background: var(--g-chip); }
+  .g-compare-table th:first-child, .g-compare-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--g-panel); font-weight: 600; min-width: 9.5rem; }
+  .g-compare-table th:first-child { background: var(--g-chip); }
+  .g-compare-table th[data-blokset], .g-compare-table td[data-blokset] { background: #fff7f2; }
+  .g-compare-table th[data-blokset] { background: #ffe8dc; }
+  .g-compare-table tr:last-child td { border-bottom: 0; }
+  .g-compare-table td { color: var(--g-muted); line-height: 1.45; }
+  .g-compare-table td[data-blokset] { color: var(--g-fg); font-weight: 500; }
+  .g-compare-note { margin: 1.25rem 0 0; max-width: 40rem; color: var(--g-muted); font-size: 0.9375rem; line-height: 1.5; }
   @media (min-width: 560px) {
     .g-plan { gap: 8px; padding: 11px 18px; font-size: 15px; }
     .g-entry button { flex: 0 0 auto; }
@@ -93,7 +118,7 @@ const CHROME = `
     .g-site-nav { grid-area: nav; margin-right: 0; gap: 14px; }
   }
   @media (min-width: 800px) {
-    .g-top, .g-library { padding-left: 28px; padding-right: 28px; }
+    .g-top, .g-library, .g-compare { padding-left: 28px; padding-right: 28px; }
   }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
@@ -110,6 +135,7 @@ function chrome(current) {
   <nav class="g-site-nav" aria-label="Site">
     ${link("/", "home", "Home")}
     ${link("/gallery", "gallery", "Gallery")}
+    ${link("/compare", "compare", "Compare")}
     ${link("/pricing", "pricing", "Pricing")}
   </nav>
   <a class="g-start" href="/gallery">Start free</a>
@@ -129,6 +155,7 @@ const footerValues = {
   column1Title: "Product",
   column1Links: [
     { label: "Gallery", href: "/gallery" },
+    { label: "Compare", href: "/compare" },
     { label: "Pricing", href: "/pricing" },
     { label: "Free sections", href: "/gallery" },
   ],
@@ -209,11 +236,11 @@ function home(specs, ctx) {
     showEyebrow: false,
     heading: "Paste the section. Keep your classes.",
     showDescription: true,
-    description: "The same section in Webflow, Figma, and code, on the classes the site already has. A button named button stays button.",
+    description: "The same section in Webflow, Figma, and code, on the classes the site already has. Built for teams comparing Relume, Flowbase, BRIX, and other Webflow component kits. A button named button stays button.",
     showButtons: true,
     buttons: [
       { title: "Start free", href: "/gallery", variant: "primary" },
-      { title: "See pricing", href: "/pricing", variant: "secondary-alt" },
+      { title: "Compare libraries", href: "/compare", variant: "secondary-alt" },
     ],
     showHint: true,
     hint: "Move the cursor. Every frame is a section from the gallery.",
@@ -273,10 +300,34 @@ function home(specs, ctx) {
     buttons: [{ title: "Start free", href: "/gallery", variant: "dark" }],
   });
   const footer = section(specs, ctx, "footer-04", { ...footerValues, showWordmark: false });
+  const seo = homeSeo(total);
   return {
-    title: "Blokset",
-    description: "The same section, in Webflow, Figma, and code, on the classes the site already has.",
+    ...seo,
     current: "home",
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        name: "Blokset",
+        url: SITE_URL,
+        description: seo.description,
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        name: "Blokset",
+        applicationCategory: "DesignApplication",
+        operatingSystem: "Web",
+        url: SITE_URL,
+        description: seo.description,
+        offers: {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "USD",
+          description: `${FREE_IDS.length} sections copy free`,
+        },
+      },
+    ],
     body: [hero, outputs, strip, classes, steps, cta, footer].join("\n"),
   };
 }
@@ -342,31 +393,162 @@ function pricing(specs, ctx) {
       { question: "When do I pay?", answer: "Billing is not open yet. Join the list and the full library opens for you when it is." },
       { question: "What can I copy today?", answer: "Twenty sections, in Client-First, with the Webflow paste. The gallery labels them Free. The other cards stay visible." },
       { question: "Does the paste keep my classes?", answer: "Class Sync pastes onto classes the site already has. A button class named button stays button." },
+      { question: "How is Blokset different from Relume or Flowbase?", answer: "Relume and Flowbase are strong Webflow kits. Blokset adds Class Sync so pastes reuse the classes you already have, plus Figma and code from the same spec. See the full matchup on /compare." },
     ],
   });
   const footer = section(specs, ctx, "footer-04", footerValues);
+  const seo = pricingSeo();
+  const faqEntities = [
+    { question: "Can I use this on client work?", answer: "Yes. Commercial use in client projects is included." },
+    { question: "Can I resell the sections?", answer: "No. Redistributing the library as someone else's kit is not included." },
+    { question: "When do I pay?", answer: "Billing is not open yet. Join the list and the full library opens for you when it is." },
+    { question: "What can I copy today?", answer: "Twenty sections, in Client-First, with the Webflow paste. The gallery labels them Free. The other cards stay visible." },
+    { question: "Does the paste keep my classes?", answer: "Class Sync pastes onto classes the site already has. A button class named button stays button." },
+    { question: "How is Blokset different from Relume or Flowbase?", answer: "Relume and Flowbase are strong Webflow kits. Blokset adds Class Sync so pastes reuse the classes you already have, plus Figma and code from the same spec." },
+  ];
   return {
-    title: "Pricing — Blokset",
-    description: "Free for 20 sections. Solo is $24 a month. Studio is $49 a month.",
+    ...seo,
     current: "pricing",
+    jsonLd: [{
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: faqEntities.map((item) => ({
+        "@type": "Question",
+        name: item.question,
+        acceptedAnswer: { "@type": "Answer", text: item.answer },
+      })),
+    }],
     body: `${plans}\n${opens}\n${faq}\n${libraryForm()}\n${footer}`,
   };
 }
 
-/** @param {{ specs: import("../types").ComponentSpec[], ctx: import("../types").BuildContext, page: "home" | "pricing", dev?: boolean }} opts */
+const COMPARE_ROWS = [
+  ["Paste into Webflow", "Yes", "Yes", "Yes", "Yes"],
+  ["Keeps existing class names (Class Sync)", "Yes", "No — kit classes", "No — kit classes", "No — kit classes"],
+  ["Client-First, BEM, and Flowkit", "Yes", "Client-First style", "Varies by kit", "Varies by kit"],
+  ["Figma from the same spec", "Yes", "Separate / limited", "Limited", "Limited"],
+  ["React, Astro, HTML, vanilla JS", "Yes", "No", "No", "No"],
+  ["Full gallery visible before you pay", "Yes", "Browse / gated mix", "Browse / gated mix", "Browse / gated mix"],
+  ["Free sections you can paste today", `${FREE_IDS.length}`, "Trial / plan dependent", "Plan dependent", "Plan dependent"],
+  ["Built for sites that already have a class system", "Yes", "Opinionated kit system", "Opinionated kit system", "Opinionated kit system"],
+];
+
+function compareMatrix() {
+  const head = ["Capability", "Blokset", "Relume Library", "Flowbase", "BRIX Templates"];
+  const headRow = head.map((label, i) => `<th${i === 1 ? " data-blokset" : ""} scope="col">${esc(label)}</th>`).join("");
+  const bodyRows = COMPARE_ROWS.map((row) => {
+    const cells = row.map((cell, i) => {
+      if (i === 0) return `<th scope="row">${esc(cell)}</th>`;
+      return `<td${i === 1 ? " data-blokset" : ""}>${esc(cell)}</td>`;
+    }).join("");
+    return `<tr>${cells}</tr>`;
+  }).join("\n");
+  return `<section class="g-compare" id="matrix" aria-labelledby="compare-matrix-title">
+  <div class="g-compare-inner">
+    <h2 id="compare-matrix-title">Side by side</h2>
+    <p>Same job: ship polished Webflow sections faster. The difference is what happens to the classes you already named, and whether Figma and code come from the same source.</p>
+    <div class="g-compare-scroll">
+      <table class="g-compare-table">
+        <thead><tr>${headRow}</tr></thead>
+        <tbody>
+${bodyRows}
+        </tbody>
+      </table>
+    </div>
+    <p class="g-compare-note">Relume, Flowbase, and BRIX are excellent Webflow-native kits. Blokset is for teams who need the paste to land on their existing naming—and who want Figma and code without rebuilding the section.</p>
+  </div>
+</section>`;
+}
+
+function compare(specs, ctx) {
+  const hero = section(specs, ctx, "hero-14", {
+    showEyebrow: false,
+    heading: "Same job as Relume. Different paste.",
+    showDescription: true,
+    description: "If you are comparing Relume Library, Flowbase, or BRIX Templates, start here. Blokset ships Webflow sections that reuse the classes your site already has—plus Figma and code from the same spec.",
+    showButtons: true,
+    buttons: [
+      { title: "Open the gallery", href: "/gallery", variant: "primary" },
+      { title: "See pricing", href: "/pricing", variant: "secondary-alt" },
+    ],
+    showHint: true,
+    hint: "Scroll for the matrix. Fair rows, not a teardown.",
+    trail: SHOT_IDS.map((id) => ({ image: shot(specs, id, "phone") })),
+  }, { theme: "dark", typeSize: "large" });
+  const points = section(specs, ctx, "features-46", {
+    showEyebrow: false,
+    heading: "What changes when you paste",
+    showDescription: true,
+    description: "Three things Relume-style kits usually do not try to solve at once.",
+    cards: [
+      { title: "Class Sync", note: "If the site already has button, the paste uses button. Webflow does not invent button 2.", image: art("class-sync", "A Webflow selector reusing the class button instead of creating button 2") },
+      { title: "Six outputs", note: "Webflow, Figma, React, Astro, HTML, and vanilla from one component spec.", image: art("client-first", "A Webflow selector with the classes button and is-primary") },
+      { title: "Your class system", note: "Client-First, BEM, or Flowkit—pick the naming the project already runs.", image: art("bem", "A Webflow selector with the classes button and button--primary") },
+    ],
+  });
+  const compareFaqs = [
+    { question: "Is Blokset a Relume alternative?", answer: "For Webflow section libraries, yes—people compare them. Relume is strong for sitemap-to-build workflows and a large Client-First style library. Blokset focuses on Class Sync, multi-framework class names, and shipping Figma plus code from the same spec." },
+    { question: "How does Blokset compare to Flowbase?", answer: "Flowbase is a large Webflow UI kit with many polished sections. Blokset is smaller today but shows every card in the gallery, lets you paste free sections now, and keeps your existing class names when you paste." },
+    { question: "How does Blokset compare to BRIX Templates?", answer: "BRIX is a well-known Webflow-native component and template library. Choose BRIX when you want that kit’s look and structure. Choose Blokset when the site already has a class system you refuse to rename—or when you need Figma and code as well." },
+    { question: "Can I switch from Relume or Flowbase?", answer: "Yes. Browse the gallery, paste a free section into a Client-First project, and see whether Class Sync matches how you already name buttons and wrappers. Join the list on pricing when you want the full library." },
+  ];
+  const faq = section(specs, ctx, "faq-04", {
+    showEyebrow: false,
+    heading: "Straight answers",
+    showDescription: true,
+    description: "No scorecards. Just the questions teams ask when they already know Relume, Flowbase, or BRIX.",
+    showContact: false,
+    showButtons: false,
+    questions: compareFaqs,
+  });
+  const cta = section(specs, ctx, "cta-12", {
+    showEyebrow: false,
+    wordmark: "Blokset",
+    showNote: true,
+    note: "Paste a free section. Keep the classes you already trust.",
+    showButtons: true,
+    buttons: [{ title: "Start free", href: "/gallery", variant: "dark" }],
+  });
+  const footer = section(specs, ctx, "footer-04", footerValues);
+  const seo = compareSeo();
+  return {
+    ...seo,
+    current: "compare",
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        name: seo.title,
+        url: `${SITE_URL}/compare`,
+        description: seo.description,
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: compareFaqs.map((item) => ({
+          "@type": "Question",
+          name: item.question,
+          acceptedAnswer: { "@type": "Answer", text: item.answer },
+        })),
+      },
+    ],
+    body: [hero, compareMatrix(), points, faq, cta, footer].join("\n"),
+  };
+}
+
+/** @param {{ specs: import("../types").ComponentSpec[], ctx: import("../types").BuildContext, page: "home" | "pricing" | "compare", dev?: boolean }} opts */
 export function renderMarketing({ specs, ctx, page, dev = false }) {
-  const view = page === "pricing" ? pricing(specs, ctx) : home(specs, ctx);
+  const view = page === "pricing" ? pricing(specs, ctx) : page === "compare" ? compare(specs, ctx) : home(specs, ctx);
+  const ld = (view.jsonLd || []).map(jsonLd).join("\n");
   return `<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(view.title)}</title>
-<meta name="description" content="${esc(view.description)}">
+${siteHead({ title: view.title, description: view.description, path: view.path })}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="${FONTS}" rel="stylesheet">
 <style>${CHROME}</style>
 <link rel="stylesheet" href="./site.css">
+${ld}
 </head>
 <body>
 ${chrome(view.current)}

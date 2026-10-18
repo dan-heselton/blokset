@@ -7,6 +7,7 @@ import { animationPrompt } from "../generators/motion-prompt.js";
 import { BUTTON_ROLES } from "./button-classes.js";
 import { assignReleases } from "./releases.js";
 import { FREE_IDS } from "../site/free.js";
+import { gallerySeo, jsonLd, siteHead, SITE_URL } from "../site/seo.js";
 
 const buttonRuntime = readFileSync(new URL("./button-classes.js", import.meta.url), "utf8").replace(/^export /gm, "");
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -254,14 +255,27 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
       <div class="g-grid">${items.map(card).join("\n")}</div>
     </section>`).join("\n");
 
+  const seo = gallerySeo(catalog.length, FREE_IDS.length);
+  const itemList = catalog.slice(0, 40).map((item, index) => ({
+    "@type": "ListItem",
+    position: index + 1,
+    name: item.name,
+    url: `${SITE_URL}/gallery#${item.id}`,
+  }));
   return `<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Blokset</title>
+${siteHead(seo)}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Newsreader:ital,opsz,wght@0,6..72,500;1,6..72,560&display=swap" rel="stylesheet">
+${jsonLd({
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  name: seo.title,
+  description: seo.description,
+  url: `${SITE_URL}/gallery`,
+  mainEntity: { "@type": "ItemList", numberOfItems: catalog.length, itemListElement: itemList },
+})}
 <style>
   :root {
     color-scheme: light;
@@ -439,6 +453,7 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
   <nav class="g-site-nav" aria-label="Site">
     <a href="/">Home</a>
     <a href="/gallery" aria-current="page">Gallery</a>
+    <a href="/compare">Compare</a>
     <a href="/pricing">Pricing</a>
   </nav>
   <label class="g-search">Search
@@ -471,7 +486,7 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
   <div class="g-page-head">
     <h1>Components</h1>
     <p class="g-count" id="g-count" aria-live="polite"></p>
-    <p class="g-scope-note">Free sections copy today. The full library is <a href="/pricing#library">on the list</a>.</p>
+    <p class="g-scope-note">Webflow components you can paste with your classes. Free sections copy today. Compare to Relume and Flowbase on <a href="/compare">Compare</a>. The full library is <a href="/pricing#library">on the list</a>.</p>
   </div>
   <div class="g-filter" role="group" aria-labelledby="g-release-label">
     <span class="g-filter-label" id="g-release-label">Release</span>

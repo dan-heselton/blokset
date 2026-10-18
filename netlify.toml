@@ -15,3 +15,8 @@
   from = "/pricing"
   to = "/pricing.html"
   status = 200
+
+[[redirects]]
+  from = "/compare"
+  to = "/compare.html"
+  status = 200
