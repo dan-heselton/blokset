@@ -1,0 +1,17 @@
+[build]
+  command = "npm run build"
+  publish = "dist/gallery"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# The dev server maps these too. Pretty URLs keep relative CSS at the site root.
+[[redirects]]
+  from = "/gallery"
+  to = "/gallery.html"
+  status = 200
+
+[[redirects]]
+  from = "/pricing"
+  to = "/pricing.html"
+  status = 200

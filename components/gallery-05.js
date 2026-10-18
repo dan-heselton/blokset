@@ -8,6 +8,7 @@ const THEME = {
   ...HEADER_THEME,
   "frame-meta": { color: "muted" },
   counter: { color: "muted" },
+  wordmark: { color: "fg" },
 };
 const t = (key) => themeBase("dark", THEME[key]);
 const frame = (title, meta, id, alt) => ({ title, meta, href: "#", image: { src: `https://images.unsplash.com/${id}?w=1400&q=80`, alt } });
@@ -28,6 +29,8 @@ export default {
     }),
     showCaptions: { type: "boolean", default: true },
     showCounter: { type: "boolean", default: true, description: "Small 01, 02… index on each frame" },
+    showWordmark: { type: "boolean", default: false, description: "One line of type under the frames, sized to the full width" },
+    wordmark: { type: "text", default: "Field notes" },
     frames: {
       type: "list",
       fields: { title: "text", meta: "text", href: "link", image: "image" },
@@ -110,6 +113,16 @@ export default {
                     ],
                   },
                 ],
+              },
+            ],
+          },
+          {
+            tag: "div", key: "wordmark-wrap", if: "showWordmark",
+            style: { base: { width: "100%", overflow: "hidden" } },
+            children: [
+              {
+                tag: "div", key: "wordmark", bind: "wordmark", attrs: { "data-blok-fit": "" },
+                style: { base: { display: "inline-block", "font-family": "token(font-display)", "font-size": "12vw", "line-height": "0.9", "font-weight": "700", "letter-spacing": "-0.05em", "white-space": "nowrap", ...t("wordmark") } },
               },
             ],
           },

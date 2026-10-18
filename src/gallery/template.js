@@ -6,6 +6,7 @@ import { pascal } from "../generators/code.js";
 import { animationPrompt } from "../generators/motion-prompt.js";
 import { BUTTON_ROLES } from "./button-classes.js";
 import { assignReleases } from "./releases.js";
+import { FREE_IDS } from "../site/free.js";
 
 const buttonRuntime = readFileSync(new URL("./button-classes.js", import.meta.url), "utf8").replace(/^export /gm, "");
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -51,6 +52,7 @@ const MOTION_DEFS = [
   { id: "filmstrip", label: "Filmstrip", test: (_spec, has) => has("data-blok-scrub") },
   { id: "menu", label: "Menu", test: (_spec, has) => has("data-blok-menu") },
   { id: "dropdown", label: "Dropdown", test: (_spec, has) => has("data-blok-drops") },
+  { id: "peek", label: "Card peek", test: (_spec, has) => has("data-blok-peek") },
   { id: "slider", label: "Slider", test: (_spec, has) => has("data-blok-slider") },
   { id: "split-word", label: "Split word", test: (_spec, has) => has("data-blok-open") },
   { id: "scroll-steps", label: "Scroll steps", test: (_spec, has) => has("data-blok-steps") },
@@ -128,10 +130,52 @@ function propsTable(spec) {
   return rows.map((row) => row.map((cell, index) => cell.padEnd(widths[index])).join("  ")).join("\n");
 }
 
+const TYPE_ORDER = [
+  "hero", "nav", "features", "bento", "stats", "pricing", "testimonial", "logos", "faq", "cta", "footer",
+  "gallery", "posts", "process", "tabs", "timeline", "compare", "team", "contact", "careers", "services",
+  "about", "statement", "work", "press", "banner", "carousel", "filter", "offgrid",
+  "integrations", "cases", "onboard", "import", "templates", "dev", "trust", "changelog",
+];
+
 function categoryLabel(category) {
   if (category === "cta") return "CTA";
   if (category === "offgrid") return "Off-grid";
+  if (category === "faq") return "FAQ";
+  if (category === "dev") return "Developers";
   return category.charAt(0).toUpperCase() + category.slice(1);
+}
+
+function collectionLabel(id) {
+  if (id === "saas") return "SaaS";
+  return id.charAt(0).toUpperCase() + id.slice(1);
+}
+
+const COLLECTION_ORDER = ["marketing", "saas"];
+
+function categoryRank(category) {
+  const index = TYPE_ORDER.indexOf(category);
+  return index === -1 ? TYPE_ORDER.length : index;
+}
+
+function sortWithinCollection(a, b) {
+  const byType = categoryRank(a.category) - categoryRank(b.category);
+  if (byType) return byType;
+  return a.id.localeCompare(b.id);
+}
+
+/** Continuous grids by collection (Marketing, then SaaS). Category is a filter only. */
+function groupCatalog(items) {
+  const groups = new Map();
+  for (const item of items) {
+    const id = item.collection || "marketing";
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push(item);
+  }
+  for (const list of groups.values()) list.sort(sortWithinCollection);
+  const ordered = [];
+  for (const id of COLLECTION_ORDER) if (groups.has(id)) ordered.push([id, groups.get(id)]);
+  for (const [id, list] of groups) if (!COLLECTION_ORDER.includes(id)) ordered.push([id, list]);
+  return ordered;
 }
 
 /** Specimen crops show the resting layout. Motion stays on the opened preview. */
@@ -143,9 +187,9 @@ function stripBlokAttrs(html) {
 const SPECIMEN_WIDTH = 1200;
 const SPECIMEN_HEIGHT = 720;
 
-function specimenSrcdoc(html) {
-  const doc = `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Newsreader:ital,opsz,wght@1,6..72,560&display=swap"><link rel="stylesheet" href="./preview.css"><style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0;width:${SPECIMEN_WIDTH}px;height:${SPECIMEN_HEIGHT}px;overflow:hidden;background:#fff}</style></head><body>${stripBlokAttrs(html)}</body></html>`;
-  return esc(doc);
+/** Full specimen document. Written to dist/gallery/specimens/<id>.html (CSS is one level up). */
+export function specimenDocument(html) {
+  return `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=Newsreader:ital,opsz,wght@1,6..72,560&display=swap"><link rel="stylesheet" href="../preview.css"><style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0;width:${SPECIMEN_WIDTH}px;height:${SPECIMEN_HEIGHT}px;overflow:hidden;background:#fff}</style></head><body>${stripBlokAttrs(html)}</body></html>`;
 }
 
 export function renderGallery({ specs, config, frameworks, previewCss, previews, outputs, variantPreviews, variantWebflow, footerCode, buttons, dev }) {
@@ -157,6 +201,7 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
       description: spec.description,
       category: spec.category,
       categoryLabel: categoryLabel(spec.category),
+      collection: spec.collection || "marketing",
       motion,
     };
   });
@@ -165,18 +210,49 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
     if (!categories.some((c) => c.id === item.category)) categories.push({ id: item.category, label: item.categoryLabel });
   }
   const motions = MOTION_DEFS.filter((def) => catalog.some((item) => item.motion.some((m) => m.id === def.id))).map(({ id, label }) => ({ id, label }));
+  const collections = [
+    { id: "marketing", label: "Marketing" },
+    { id: "saas", label: "SaaS" },
+  ];
+  for (const item of catalog) {
+    if (!collections.some((entry) => entry.id === item.collection)) collections.push({ id: item.collection, label: collectionLabel(item.collection) });
+  }
   const releases = assignReleases(catalog.map((item) => item.id));
   const releaseOf = new Map();
   for (const release of releases) for (const id of release.ids) if (!releaseOf.has(id)) releaseOf.set(id, release.id);
   const outputsAvailable = OUTPUTS.filter((o) => config.targets.includes(o.id));
   const previewFramework = frameworks.find((f) => f.name === config.framework) || frameworks[0];
-  // Component CSS is written to preview.css. The page and specimen iframes both link it.
+  // Component CSS is written to preview.css. Copy payloads ship as ./data/<id>.json.
   void previewCss;
+  void outputs;
+  void variantWebflow;
 
+  const free = new Set(FREE_IDS);
   const chips = (group, items) =>
     [`<button type="button" class="g-chip" data-filter="${group}" data-value="" aria-pressed="true">All</button>`]
       .concat(items.map((item) => `<button type="button" class="g-chip" data-filter="${group}" data-value="${esc(item.id)}" aria-pressed="false">${esc(item.label)}</button>`))
       .join("");
+
+  const card = (item) => `
+      <article class="g-card" data-id="${esc(item.id)}" data-category="${esc(item.category)}" data-collection="${esc(item.collection)}" data-motion="${esc(item.motion.map((m) => m.id).join(" "))}"${releaseOf.has(item.id) ? ` data-release="${esc(releaseOf.get(item.id))}"` : ""} data-search="${esc([item.name, item.id, item.description, item.category, item.categoryLabel, item.collection, ...item.motion.flatMap((m) => [m.id, m.label])].join(" ").toLowerCase())}">
+        <a class="g-card-open" href="#${esc(item.id)}" aria-label="Open ${esc(item.name)}">
+          <div class="g-specimen" aria-hidden="true"><iframe class="g-specimen-frame" width="${SPECIMEN_WIDTH}" height="${SPECIMEN_HEIGHT}" tabindex="-1" scrolling="no" loading="lazy" title="" src="./specimens/${esc(item.id)}.html"></iframe></div>
+          <div class="g-card-meta">
+            <h2>${esc(item.name)}</h2>
+            <span class="g-free${free.has(item.id) ? "" : " g-free-paid"}">${free.has(item.id) ? "Free" : "Full library"}</span>
+            <span class="g-id">${esc(item.id)}</span>
+            <p class="g-desc">${esc(item.description)}</p>
+            ${item.motion.length ? `<ul class="g-tags">${item.motion.map((m) => `<li class="g-tag">${esc(m.label)}</li>`).join("")}</ul>` : ""}
+            <span class="g-btn g-open">Open</span>
+          </div>
+        </a>
+      </article>`;
+
+  const groups = groupCatalog(catalog).map(([id, items]) => `
+    <section class="g-group" data-collection="${esc(id)}">
+      <h2 class="g-group-title">${esc(collectionLabel(id))}</h2>
+      <div class="g-grid">${items.map(card).join("\n")}</div>
+    </section>`).join("\n");
 
   return `<!doctype html>
 <html lang="en">
@@ -185,7 +261,7 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Blokset</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Newsreader:ital,opsz,wght@0,6..72,500;1,6..72,560&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Newsreader:ital,opsz,wght@0,6..72,500;1,6..72,560&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: light;
@@ -217,7 +293,7 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
   .g-skip:focus { top: 12px; }
   .g-sticky { position: sticky; top: 0; z-index: 100; background: var(--g-bg); border-bottom: 1px solid var(--g-line); }
   .g-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 16px; }
-  .g-logo { display: flex; align-items: center; gap: 10px; align-self: center; margin-right: auto; color: inherit; text-decoration: none; font-family: "Inter Tight", sans-serif; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
+  .g-logo { display: flex; align-items: center; gap: 10px; align-self: center; color: inherit; text-decoration: none; font-family: "Inter Tight", sans-serif; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
   .g-logo:focus-visible { outline: 2px solid var(--g-fg); outline-offset: 3px; border-radius: 6px; }
   .g-logo-mark { width: 22px; height: 22px; border-radius: 6px; background: var(--g-fg); position: relative; }
   .g-logo-mark::after { content: ""; position: absolute; inset: 6px; border-radius: 2px; background: #ff5b2e; }
@@ -283,7 +359,10 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
   .g-page-head h1 { font-size: 15px; }
   .g-count { margin: 0; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--g-muted); font-weight: 500; }
   .g-scope-note { margin: 0; min-width: 0; color: var(--g-muted); font-size: 12px; font-weight: 400; line-height: 1.35; }
-  .g-grid { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 16px; }
+  .g-scope-note a { color: inherit; }
+  .g-groups { display: flex; flex-direction: column; gap: 28px; padding: 8px 0 28px; }
+  .g-group-title { margin: 0; padding: 0 16px; font-family: "Inter Tight", sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--g-muted); }
+  .g-grid { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 12px 16px 0; }
   .g-card { min-width: 0; border: 1px solid var(--g-line); border-radius: 14px; background: var(--g-panel); overflow: hidden; }
   .g-card-open { display: flex; flex-direction: column; height: 100%; color: inherit; text-decoration: none; border-radius: 14px; }
   .g-card-open:hover .g-open, .g-card-open:focus-visible .g-open { background: var(--g-chip); }
@@ -291,6 +370,13 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
   .g-specimen-frame { position: absolute; top: 0; left: 0; width: 1200px; height: 720px; border: 0; background: #fff; transform-origin: top left; transform: scale(calc(100cqw / 1200px)); pointer-events: none; }
   .g-card-meta { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px 16px 16px; }
   .g-card-meta h2 { margin: 0; font-family: "Inter Tight", sans-serif; font-size: 16px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; }
+  .g-free { font: 600 11px/1 "Inter Tight", sans-serif; letter-spacing: 0.01em; background: #ff5b2e; color: #141414; border-radius: 999px; padding: 4px 7px; }
+  .g-free-paid { background: var(--g-chip); color: var(--g-fg); }
+  .g-site-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-right: auto; }
+  .g-site-nav a { color: inherit; text-decoration: none; font-size: 13px; font-weight: 500; }
+  .g-site-nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 3px; }
+  .g-site-nav a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .g-site-nav a:focus-visible { outline: 2px solid var(--g-fg); outline-offset: 3px; border-radius: 4px; }
   .g-id { font: 500 12px/1 "JetBrains Mono", ui-monospace, monospace; color: var(--g-muted); }
   .g-desc { margin: 0; color: var(--g-muted); font-size: 13px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .g-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 0; padding: 0; list-style: none; }
@@ -329,7 +415,9 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
   .g-toast.is-on { opacity: 1; transform: translate(-50%, 0); }
   @media (min-width: 800px) {
     .g-top, .g-filters, .g-detail-top { padding-left: 24px; padding-right: 24px; }
-    .g-grid { grid-template-columns: 1fr 1fr; gap: 18px; padding: 20px 24px 28px; }
+    .g-groups { padding-bottom: 36px; }
+    .g-group-title { padding-left: 24px; padding-right: 24px; }
+    .g-grid { grid-template-columns: 1fr 1fr; gap: 18px; padding: 14px 24px 0; }
     .g-preview-note, .g-help { margin-left: 24px; margin-right: 24px; }
     .g-preview-note { padding-left: 0; padding-right: 0; }
   }
@@ -347,7 +435,12 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
 <a class="g-skip" href="#g-grid">Skip to components</a>
 <div class="g-sticky">
 <header class="g-top">
-  <a class="g-logo" href="./" id="g-home"><span class="g-logo-mark" aria-hidden="true"></span>Blokset</a>
+  <a class="g-logo" href="/" id="g-home"><span class="g-logo-mark" aria-hidden="true"></span>Blokset</a>
+  <nav class="g-site-nav" aria-label="Site">
+    <a href="/">Home</a>
+    <a href="/gallery" aria-current="page">Gallery</a>
+    <a href="/pricing">Pricing</a>
+  </nav>
   <label class="g-search">Search
     <input id="g-search" type="search" name="q" placeholder="Name, id, or description" autocomplete="off" enterkeyhint="search">
   </label>
@@ -378,10 +471,15 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
   <div class="g-page-head">
     <h1>Components</h1>
     <p class="g-count" id="g-count" aria-live="polite"></p>
+    <p class="g-scope-note">Free sections copy today. The full library is <a href="/pricing#library">on the list</a>.</p>
   </div>
   <div class="g-filter" role="group" aria-labelledby="g-release-label">
     <span class="g-filter-label" id="g-release-label">Release</span>
     ${chips("release", [...releases].reverse().map(({ id, label }) => ({ id, label })))}
+  </div>
+  <div class="g-filter" role="group" aria-labelledby="g-collection-label">
+    <span class="g-filter-label" id="g-collection-label">Collection</span>
+    ${chips("collection", collections)}
   </div>
   <div class="g-filter-tools">
     <div class="g-menu">
@@ -421,23 +519,11 @@ export function renderGallery({ specs, config, frameworks, previewCss, previews,
 </div>
 <main>
   <div id="g-catalog">
-    <div class="g-grid" id="g-grid">
-      ${catalog.map((item) => `
-      <article class="g-card" data-id="${esc(item.id)}" data-category="${esc(item.category)}" data-motion="${esc(item.motion.map((m) => m.id).join(" "))}"${releaseOf.has(item.id) ? ` data-release="${esc(releaseOf.get(item.id))}"` : ""} data-search="${esc([item.name, item.id, item.description, item.category, item.categoryLabel, ...item.motion.flatMap((m) => [m.id, m.label])].join(" ").toLowerCase())}">
-        <a class="g-card-open" href="#${esc(item.id)}" aria-label="Open ${esc(item.name)}">
-          <div class="g-specimen" aria-hidden="true"><iframe class="g-specimen-frame" width="${SPECIMEN_WIDTH}" height="${SPECIMEN_HEIGHT}" tabindex="-1" scrolling="no" title="" srcdoc="${specimenSrcdoc(previews[item.id] || "")}"></iframe></div>
-          <div class="g-card-meta">
-            <h2>${esc(item.name)}</h2>
-            <span class="g-id">${esc(item.id)}</span>
-            <p class="g-desc">${esc(item.description)}</p>
-            ${item.motion.length ? `<ul class="g-tags">${item.motion.map((m) => `<li class="g-tag">${esc(m.label)}</li>`).join("")}</ul>` : ""}
-            <span class="g-btn g-open">Open</span>
-          </div>
-        </a>
-      </article>`).join("\n")}
+    <div class="g-groups" id="g-groups">
+      ${groups}
     </div>
     <div class="g-empty" id="g-empty" hidden>
-      <p>No components match. Clear the search, or the release, category, and motion filters.</p>
+      <p>No components match. Clear the search, or the release, collection, category, and motion filters.</p>
       <button type="button" class="g-btn" id="g-empty-clear">Clear search and filters</button>
     </div>
   </div>
@@ -467,7 +553,9 @@ ${catalog.map((item) => `<template id="tpl-${esc(item.id)}">${previews[item.id] 
 ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(byKey).map(([key, html]) => `<template data-preview-for="${esc(id)}" data-selection="${esc(key)}">${html}</template>`)).join("")}
 <div class="g-toast" id="g-toast" role="status"></div>
 <script type="application/json" id="g-data">${jsonForScript({
-    outputs,
+    // Per-component copy payloads live in ./data/<id>.json (keeps this page under host file-size limits).
+    outputs: {},
+    webflow: {},
     footerCode,
     defaultFramework: config.framework,
     previewFramework: previewFramework.name,
@@ -486,8 +574,6 @@ ${Object.entries(variantPreviews || {}).flatMap(([id, byKey]) => Object.entries(
         options: Object.entries(def.options).map(([value, opt]) => ({ value, label: optionLabel(value, opt) })),
       })),
     }])),
-    previews: variantPreviews || {},
-    webflow: variantWebflow || {},
     buttons: buttons || {
       previewFramework: config.framework,
       roles: BUTTON_ROLES,
@@ -503,6 +589,29 @@ ${buttonRuntime}
 <script>
 (function () {
   var data = JSON.parse(document.getElementById("g-data").textContent);
+  data.outputs = data.outputs || {};
+  data.webflow = data.webflow || {};
+  var payloadCache = {};
+  function ensurePayload(id) {
+    if (!id) return Promise.resolve(null);
+    if (data.outputs[id]) return Promise.resolve(data.outputs[id]);
+    if (payloadCache[id]) return payloadCache[id];
+    payloadCache[id] = fetch("./data/" + encodeURIComponent(id) + ".json")
+      .then(function (res) {
+        if (!res.ok) throw new Error("Failed to load " + id);
+        return res.json();
+      })
+      .then(function (payload) {
+        data.outputs[id] = payload.outputs || {};
+        data.webflow[id] = payload.webflow || {};
+        return payload;
+      })
+      .catch(function (err) {
+        delete payloadCache[id];
+        throw err;
+      });
+    return payloadCache[id];
+  }
   var search = document.getElementById("g-search");
   var framework = document.getElementById("g-framework");
   var output = document.getElementById("g-output");
@@ -674,17 +783,19 @@ ${buttonRuntime}
     });
   }
   function filtered() {
-    return !!(search.value.trim() || selected("release").length || selected("category").length || selected("motion").length);
+    return !!(search.value.trim() || selected("release").length || selected("collection").length || selected("category").length || selected("motion").length);
   }
   function apply() {
     var q = search.value.trim().toLowerCase();
     var release = selected("release");
+    var collections = selected("collection");
     var cats = selected("category");
     var motions = selected("motion");
     var shown = 0;
     document.querySelectorAll(".g-card").forEach(function (card) {
       var ok = !q || card.dataset.search.indexOf(q) !== -1;
       if (ok && release.length && release.indexOf(card.dataset.release || "") === -1) ok = false;
+      if (ok && collections.length && collections.indexOf(card.dataset.collection || "marketing") === -1) ok = false;
       if (ok && cats.length && cats.indexOf(card.dataset.category) === -1) ok = false;
       if (ok && motions.length) {
         var tags = (card.dataset.motion || "").split(" ").filter(Boolean);
@@ -692,6 +803,9 @@ ${buttonRuntime}
       }
       card.hidden = !ok;
       if (ok) shown++;
+    });
+    document.querySelectorAll(".g-group").forEach(function (group) {
+      group.hidden = !group.querySelector(".g-card:not([hidden])");
     });
     var isFiltered = filtered();
     countEl.textContent = !isFiltered
@@ -725,9 +839,11 @@ ${buttonRuntime}
     var params = new URLSearchParams();
     if (search.value.trim()) params.set("q", search.value.trim());
     var release = selected("release");
+    var collections = selected("collection");
     var cats = selected("category");
     var motions = selected("motion");
     if (release.length) params.set("release", release.join(","));
+    if (collections.length) params.set("collection", collections.join(","));
     if (cats.length) params.set("category", cats.join(","));
     if (motions.length) params.set("motion", motions.join(","));
     if (framework.value !== data.defaultFramework) params.set("framework", framework.value);
@@ -832,7 +948,11 @@ ${buttonRuntime}
   }
   function renderCode() {
     if (!currentId) return;
-    codeText.textContent = codeForTab();
+    ensurePayload(currentId).then(function () {
+      if (currentId) codeText.textContent = codeForTab();
+    }).catch(function () {
+      codeText.textContent = "Could not load code for this component.";
+    });
   }
   function showDetail(id, push) {
     var spec = data.components[id];
@@ -857,6 +977,9 @@ ${buttonRuntime}
     writeUrl(id, push);
     window.scrollTo(0, 0);
     document.getElementById("g-back").focus();
+    ensurePayload(id).catch(function () {
+      toast("Could not load copy payloads for " + id);
+    });
   }
   function showCatalog(push) {
     var returnId = currentId;
@@ -874,6 +997,7 @@ ${buttonRuntime}
   function clearFind() {
     search.value = "";
     setPressed("release", []);
+    setPressed("collection", []);
     setPressed("category", []);
     setPressed("motion", []);
     apply();
@@ -884,6 +1008,7 @@ ${buttonRuntime}
     var params = new URLSearchParams(location.search);
     search.value = params.get("q") || "";
     setPressed("release", known("release", (params.get("release") || "").split(",").filter(Boolean)));
+    setPressed("collection", known("collection", (params.get("collection") || "").split(",").filter(Boolean)));
     setPressed("category", known("category", (params.get("category") || "").split(",").filter(Boolean)));
     setPressed("motion", known("motion", (params.get("motion") || "").split(",").filter(Boolean)));
     var fw = params.get("framework");
@@ -1013,18 +1138,8 @@ ${buttonRuntime}
     return Promise.resolve(copyWith("text/plain", text));
   }
   copyPrimary.addEventListener("click", function () {
-    var bundle = currentBundle();
-    if (!bundle) return;
+    if (!currentId) return;
     var label = data.outputLabels[output.value] || output.value;
-    if (output.value === "webflow") {
-      var key = currentSelectionKey();
-      var table = data.webflow && data.webflow[currentId] && data.webflow[currentId][framework.value];
-      var payload = presentWebflow((table && table[key]) || bundle.webflow);
-      var ok = copyWith("application/json", payload);
-      statusEl.textContent = ok ? label + " copied" : "";
-      toast(ok ? "Copied (" + framework.options[framework.selectedIndex].text + "). Paste into the Webflow Designer." : "Copy was blocked. Open this page in a normal browser tab.");
-      return;
-    }
     if (output.value === "figma") {
       var spec = data.components[currentId];
       var selection = {};
@@ -1039,14 +1154,36 @@ ${buttonRuntime}
       });
       return;
     }
-    copyText(presentBundle(bundle)[output.value] || "").then(function (ok) {
-      statusEl.textContent = ok ? label + " copied" : "";
-      toast(ok ? label + " copied" : "Copy was blocked");
+    ensurePayload(currentId).then(function () {
+      var bundle = currentBundle();
+      if (!bundle) {
+        toast("Copy payload missing for this component");
+        return;
+      }
+      if (output.value === "webflow") {
+        var key = currentSelectionKey();
+        var table = data.webflow && data.webflow[currentId] && data.webflow[currentId][framework.value];
+        var payload = presentWebflow((table && table[key]) || bundle.webflow);
+        var ok = copyWith("application/json", payload);
+        statusEl.textContent = ok ? label + " copied" : "";
+        toast(ok ? "Copied (" + framework.options[framework.selectedIndex].text + "). Paste into the Webflow Designer." : "Copy was blocked. Open this page in a normal browser tab.");
+        return;
+      }
+      copyText(presentBundle(bundle)[output.value] || "").then(function (copied) {
+        statusEl.textContent = copied ? label + " copied" : "";
+        toast(copied ? label + " copied" : "Copy was blocked");
+      });
+    }).catch(function () {
+      toast("Could not load copy payloads");
     });
   });
   document.getElementById("g-copy-code").addEventListener("click", function () {
-    var bundle = currentBundle();
-    copyText(codeForTab()).then(function (ok) { toast(ok ? "Code copied" : "Copy was blocked"); });
+    if (!currentId) return;
+    ensurePayload(currentId).then(function () {
+      copyText(codeForTab()).then(function (ok) { toast(ok ? "Code copied" : "Copy was blocked"); });
+    }).catch(function () {
+      toast("Could not load code");
+    });
   });
   document.getElementById("g-copy-footer").addEventListener("click", function () {
     copyText(data.footerCode).then(function (ok) { toast(ok ? "Footer code copied" : "Copy was blocked"); });

@@ -9,7 +9,7 @@ const THEME = {
   "col-2-title": { color: "muted" },
   "col-3-title": { color: "muted" },
   wordmark: { color: "fg" },
-  bottom: { "border-top-color": "line", color: "muted" },
+  bottom: { color: "muted" },
   top: { "border-bottom-color": "line" },
 };
 const t = (key) => themeBase("dark", THEME[key]);
@@ -124,7 +124,7 @@ export default {
             {
               tag: "div", key: "bottom", if: "showLegal",
               style: {
-                base: { display: "flex", "flex-direction": "column", "justify-content": "flex-start", "row-gap": "1rem", "column-gap": "0rem", "padding-top": "1.5rem", "border-top-width": "1px", "border-top-style": "solid", "font-size": "0.875rem", ...t("bottom") },
+                base: { display: "flex", "flex-direction": "column", "justify-content": "flex-start", "row-gap": "1rem", "column-gap": "0rem", "font-size": "0.875rem", ...t("bottom") },
                 md: { "flex-direction": "row", "justify-content": "space-between", "row-gap": "0rem", "column-gap": "2rem" },
               },
               children: [

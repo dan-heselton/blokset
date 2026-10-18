@@ -83,7 +83,7 @@ export default {
               {
                 tag: "h1", key: "heading", bind: "heading", attrs: { "data-blok-split": "rise" },
                 style: {
-                  base: { "margin-top": "0", "margin-bottom": "1.75rem", "font-family": "token(font-display)", "font-size": "3.5rem", "line-height": "0.92", "font-weight": "600", "letter-spacing": "-0.05em" },
+                  base: { "margin-top": "0", "margin-bottom": "1.75rem", "font-family": "token(font-display)", "font-size": "3.5rem", "line-height": "0.92", "font-weight": "600", "letter-spacing": "-0.05em", "text-wrap": "balance" },
                   md: { "font-size": "6rem" },
                   lg: { "font-size": "8.5rem" },
                 },

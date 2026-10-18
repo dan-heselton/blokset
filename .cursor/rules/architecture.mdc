@@ -16,6 +16,9 @@ Pipeline: `components/*.js` (spec) → `src/core/resolve.js` (apply framework pr
   Add new node features here once rather than per target.
 - `src/generators/webflow.js`: `@webflow/XscpData` clipboard payload. Desktop-first breakpoints,
   combo classes as nested style records.
+- `src/core/figma-style.js` and `src/generators/figma.js`: the same spec as a Figma document
+  (auto-layout, variables, component properties, breakpoint variants). `src/figma-runtime/builder.js`
+  is copied to `figma-plugin/code.js` and builds that document inside Figma. No import/export in that file.
 - `src/runtime/motion-core.js`: behaviour runtime, embedded into an ESM build (npm gsap) and a
   global build (CDN gsap). No import/export in that file.
 - `frameworks/*.js`: class-naming profiles. `_template.js` documents the shape.

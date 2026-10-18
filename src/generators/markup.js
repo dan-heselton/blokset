@@ -106,6 +106,7 @@ export function renderMarkup(spec, resolved, mode, startDepth = 0, options = {})
     if (node.decorative) a += ` aria-hidden="true"`;
     for (const [k, v] of Object.entries({ ...(motion[node.key] || {}), ...(node.attrs || {}) })) {
       if (typeof v === "string" && v.startsWith("=")) a += attr(k, v.slice(1), scope);
+      else if (mode === "react" && /^(aria-valuemin|aria-valuemax|aria-valuenow)$/.test(k) && /^-?\d+(?:\.\d+)?$/.test(v)) a += ` ${k}={${v}}`;
       else a += v === "" ? ` ${k}` : ` ${k}="${escapeHtml(v)}"`;
     }
 

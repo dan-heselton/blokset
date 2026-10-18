@@ -19,7 +19,7 @@ export default {
   prefix: "hero31",
   name: "Hero / Notched photo",
   category: "hero",
-  description: "A display headline over a wide photograph. The description and the actions sit in corners cut out of the picture. On a phone they stack above and below it.",
+  description: "A display headline over a wide photograph that fills the rest of the screen. The description and the actions sit in corners cut out of the picture. On a phone they stack above and below it.",
 
   props: {
     heading: { type: "text", default: "Furniture for rooms we actually sit in." },
@@ -52,19 +52,25 @@ export default {
     children: [
       shell({
         tag: "div", key: "component",
-        style: { base: { display: "flex", "flex-direction": "column", "row-gap": "1.5rem" } },
+        style: {
+          base: { display: "flex", "flex-direction": "column", "row-gap": "1.5rem", height: "auto", "min-height": "0px" },
+          lg: { height: "calc(100svh - 16rem)" },
+        },
         children: [
           {
             tag: "h1", key: "heading", bind: "heading",
             style: {
-              base: { "margin-top": "0", "margin-bottom": "0", "max-width": "16ch", "font-family": "token(font-display)", "font-size": "3rem", "line-height": "0.95", "font-weight": "700", "letter-spacing": "-0.045em", ...t("heading") },
+              base: { "flex-shrink": "0", "margin-top": "0", "margin-bottom": "0", "max-width": "16ch", "font-family": "token(font-display)", "font-size": "3rem", "line-height": "0.95", "font-weight": "700", "letter-spacing": "-0.045em", ...t("heading") },
               md: { "font-size": "4.5rem" },
               lg: { "font-size": "5.75rem" },
             },
           },
           {
             tag: "div", key: "stage",
-            style: { base: { position: "relative" } },
+            style: {
+              base: { position: "relative", "flex-grow": "0", "flex-shrink": "1", "min-height": "0px", width: "100%" },
+              lg: { "flex-grow": "1" },
+            },
             children: [
               {
                 tag: "div", key: "notch-copy", if: "showDescription",
@@ -79,7 +85,8 @@ export default {
               {
                 tag: "img", key: "image", bind: "image",
                 style: {
-                  base: { display: "block", width: "100%", height: "auto", "aspect-ratio": "16 / 10", "object-fit": "cover", "border-top-left-radius": "1.25rem", "border-top-right-radius": "1.25rem", "border-bottom-right-radius": "1.25rem", "border-bottom-left-radius": "1.25rem" },
+                  base: { ...parked, "z-index": "0", display: "block", width: "100%", height: "auto", "aspect-ratio": "16 / 10", "object-fit": "cover", "border-top-left-radius": "1.25rem", "border-top-right-radius": "1.25rem", "border-bottom-right-radius": "1.25rem", "border-bottom-left-radius": "1.25rem" },
+                  lg: { position: "absolute", top: "0", right: "0", bottom: "0", left: "0", height: "100%", "aspect-ratio": "auto" },
                 },
               },
               {

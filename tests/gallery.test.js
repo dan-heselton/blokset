@@ -123,9 +123,30 @@ test("catalog can be searched and filtered, and specimens do not run motion", ()
   const catalog = parts[0];
   const templates = parts.slice(1).join("<template");
   assert.match(catalog, /id="g-search"/);
+  assert.match(catalog, /href="\/pricing#library"/);
+  assert.match(catalog, /aria-current="page">Gallery/);
+  const cardOf = (id) => catalog.split(`<article class="g-card" data-id="${id}"`)[1].split("<article")[0];
+  const heroCard = cardOf("hero-18");
+  assert.match(heroCard, /class="g-free"/);
+  assert.equal(heroCard.includes("g-free-paid"), false);
+  assert.match(cardOf("careers-16"), /g-free-paid/);
   assert.match(catalog, /data-filter="category"/);
   assert.match(catalog, /data-filter="motion"/);
   assert.match(catalog, /data-filter="release"/);
+  assert.match(catalog, /data-filter="collection"/);
+  assert.match(catalog, />Marketing</);
+  assert.match(catalog, />SaaS</);
+  assert.match(catalog, /class="g-group-title"/);
+  assert.match(catalog, /<section class="g-group" data-collection="marketing">/);
+  assert.match(catalog, /<section class="g-group" data-collection="saas">/);
+  assert.match(catalog, /<h2 class="g-group-title">Marketing<\/h2>/);
+  assert.match(catalog, /<h2 class="g-group-title">SaaS<\/h2>/);
+  assert.doesNotMatch(catalog, /<section class="g-group" data-category=/);
+  assert.match(catalog, /data-collection="marketing"/);
+  assert.match(catalog, /data-collection="saas"/);
+  assert.match(catalog, />Release 10</);
+  assert.match(catalog, />Release 9</);
+  assert.match(catalog, />Release 8</);
   assert.match(catalog, />Release 7</);
   assert.match(catalog, />Release 1</);
   assert.doesNotMatch(catalog, />Unpushed</);
@@ -139,7 +160,11 @@ test("catalog can be searched and filtered, and specimens do not run motion", ()
   for (const release of releases) for (const id of release.ids) if (!releaseOf.has(id)) releaseOf.set(id, release.id);
   assert.equal(releaseOf.get("hero-05"), "1");
   assert.equal(releaseOf.get("hero-45"), "7");
-  assert.equal(releases.length, 7);
+  assert.equal(releaseOf.get("hero-46"), "7");
+  assert.equal(releaseOf.get("nav-07"), "8");
+  assert.equal(releaseOf.get("hero-57"), "9");
+  assert.equal(releaseOf.get("hero-63"), "10");
+  assert.equal(releases.length, 10);
   for (const spec of specs) {
     const card = catalog.match(new RegExp(`<article class="g-card" data-id="${spec.id}"[^>]*>`));
     assert.ok(card, spec.id);
@@ -167,9 +192,10 @@ test("catalog can be searched and filtered, and specimens do not run motion", ()
   assert.match(html, /\[light\]/);
   assert.match(catalog, /Class system and output change what you copy/);
   assert.doesNotMatch(catalog, /data-blok-/);
+  assert.doesNotMatch(catalog, /srcdoc=/);
   for (const spec of specs) {
     assert.match(catalog, new RegExp(`data-id="${spec.id}"`));
-    assert.match(catalog, new RegExp(`&lt;p&gt;${spec.id}&lt;/p&gt;`));
+    assert.match(catalog, new RegExp(`src="\\./specimens/${spec.id}\\.html"`));
     assert.match(templates, new RegExp(`id="tpl-${spec.id}"`));
   }
   assert.match(templates, /data-blok-enter="fade-up"/);

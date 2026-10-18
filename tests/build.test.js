@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { transform } from "@astrojs/compiler";
 import { ROOT, loadConfig, loadFrameworks, loadComponents, createContext } from "../src/core/config.js";
@@ -11,6 +11,7 @@ import { generateWebflow } from "../src/generators/webflow.js";
 import { WEBFLOW_PROPERTY_ORDER } from "../src/core/webflow-order.js";
 import { snapshotFromExport, variablesFromExport, bindTokenVariables } from "../src/sync.js";
 import { componentManifest, variablesManifest } from "../src/generators/webflow-manifest.js";
+import { webflowFooterCode, WEBFLOW_CUSTOM_CODE_LIMIT } from "../src/runtime/build-runtime.js";
 import { renderMarkup } from "../src/generators/markup.js";
 
 const config = await loadConfig();
@@ -59,6 +60,18 @@ for (const fw of Object.values(frameworks)) {
       }
       for (const s of payload.styles) for (const c of s.children) assert.ok(styleIds.has(c), `missing combo ${c}`);
       assert.ok(!JSON.stringify(payload).includes("token("), "unresolved token");
+      const referenced = new Set();
+      for (const n of payload.nodes) {
+        if (n.type === "Image" && n.data?.attr?.src) {
+          referenced.add(n.data.attr.src);
+          const asset = payload.assets.find((item) => item._id === n.data.img.id);
+          assert.equal(asset?.cdnUrl, n.data.attr.src, `${spec.id} image asset`);
+        }
+        for (const attr of n.data?.xattr || []) {
+          if (attr.name === "data-blok-src" && attr.value) referenced.add(attr.value);
+        }
+      }
+      assert.deepEqual(payload.assets.map((item) => item.cdnUrl).sort(), [...referenced].sort(), `${spec.id} assets`);
     });
   }
 }
@@ -97,6 +110,7 @@ test("variants: combo classes, selections, and typed props", async () => {
       theme: {
         label: "Color theme",
         default: "light",
+        palette: { default: "light", options: ["light", "dark", "accent"], map: {} },
         options: {
           light: null,
           dark: {
@@ -447,6 +461,160 @@ test("vanilla render and react types honor variants and toggles", async () => {
   assert.match(mod.render({ theme: "dark" }), /section_features12 is-dark/);
   assert.doesNotMatch(mod.render({ showEyebrow: false }), /features12_eyebrow/);
   assert.match(generateReact(spec, ctx, resolved), /theme: "light" \| "dark" \| "accent";/);
+});
+
+test("webflow paste ships one asset per demo image", () => {
+  const ctx = createContext(config, frameworks["client-first"]);
+  const features = generateWebflow(specs.find((spec) => spec.id === "features-07"), ctx).payload;
+  const photo = features.nodes.find((node) => node.type === "Image");
+  const asset = features.assets.find((item) => item._id === photo.data.img.id);
+  assert.equal(asset.cdnUrl, photo.data.attr.src);
+  assert.equal(asset.s3Url, photo.data.attr.src);
+  assert.equal(asset.mimeType, "image/jpeg");
+  assert.equal(asset.origFileName, "photo-1497366216548-37526070297c.jpg");
+  assert.equal(asset.alt, photo.data.attr.alt);
+  assert.equal("width" in asset, false);
+  assert.equal(generateWebflow(specs.find((spec) => spec.id === "features-07"), ctx).payload.assets[0]._id, asset._id);
+
+  const nav = generateWebflow(specs.find((spec) => spec.id === "nav-06"), ctx).payload;
+  const figure = nav.nodes.find((node) => node.type === "Image");
+  const swap = nav.nodes.flatMap((node) => node.data?.xattr || []).filter((attr) => attr.name === "data-blok-src").map((attr) => attr.value);
+  assert.equal(swap.length, 4);
+  assert.ok(swap.includes(figure.data.attr.src));
+  assert.equal(nav.assets.length, new Set(swap).size);
+  assert.equal(nav.assets.filter((item) => item.cdnUrl === figure.data.attr.src).length, 1);
+  assert.equal(nav.assets.find((item) => item.cdnUrl === figure.data.attr.src)._id, figure.data.img.id);
+
+  const logos = generateWebflow(specs.find((spec) => spec.id === "logos-02"), ctx).payload;
+  const mark = logos.assets.find((item) => item.cdnUrl.includes("text=Northwind"));
+  assert.equal(mark.mimeType, "image/png");
+  assert.equal(mark.origFileName, "Northwind.png");
+
+  const statement = generateWebflow(specs.find((spec) => spec.id === "statement-01"), ctx).payload;
+  assert.deepEqual(statement.assets, []);
+});
+
+test("webflow paste keeps measured size and dimensions for a demo image", () => {
+  const ctx = createContext(config, frameworks["client-first"]);
+  const spec = specs.find((item) => item.id === "features-07");
+  const url = spec.props.image.default.src;
+  ctx.demoImages = new Map([[url, { width: 1200, height: 800, fileSize: 34567, fileHash: "abc123", mimeType: "image/jpeg" }]]);
+  const photo = generateWebflow(spec, ctx).payload.nodes.find((node) => node.type === "Image");
+  const asset = generateWebflow(spec, ctx).payload.assets.find((item) => item._id === photo.data.img.id);
+  assert.equal(asset.cdnUrl, url);
+  assert.equal(asset.s3Url, url);
+  assert.equal(asset.thumbUrl, url);
+  assert.equal(asset.width, 1200);
+  assert.equal(asset.height, 800);
+  assert.equal(asset.fileSize, 34567);
+  assert.equal(asset.fileHash, "abc123");
+  assert.equal(asset.mimeType, "image/jpeg");
+});
+
+test("new components keep their runtime attributes in static HTML", () => {
+  const ctx = createContext(config, frameworks["client-first"]);
+  const expect = {
+    "testimonial-09": ["data-blok-count"],
+    "testimonial-11": ["data-blok-marquee", 'data-blok-direction="reverse"'],
+    "team-03": ["data-blok-hover-reveal", "data-blok-hover-row", "data-blok-hover-media"],
+    "hero-21": ['data-blok-split="chars"', 'data-blok-scroll="parallax"'],
+    "hero-23": ['data-blok-depth="0.45"', 'data-blok-depth="-0.32"'],
+    "hero-25": ["data-blok-pointer", "data-blok-pointer-layer", 'data-blok-split="lines"'],
+    "statement-01": ['data-blok-split="fill"'],
+    "statement-03": ['data-blok-split="lines"'],
+    "cta-11": ["data-blok-scramble"],
+    "cta-12": ["data-blok-fit", 'data-blok-split="scrub"'],
+    "gallery-14": ['data-blok-depth="-0.4"'],
+    "features-40": ["data-blok-expand-media", 'data-blok-scroll="zoom"'],
+    "logos-05": ["data-blok-velocity", 'data-blok-split="chars"'],
+    "contact-01": ["mailto:hello@studio.co", "tel:+19785550148"],
+    "nav-01": ["data-blok-menu", "data-blok-menu-toggle", "data-blok-menu-panel"],
+    "nav-02": ['data-blok-menu="overlay"', "data-blok-menu-open", "data-blok-menu-close"],
+    "nav-03": ["data-blok-menu-toggle"],
+    "nav-04": ["data-blok-drops", "data-blok-drop-trigger", "data-blok-drop-panel"],
+    "nav-05": ['data-blok-drop="mega"', "data-blok-drop-panel"],
+    "nav-06": ["data-blok-swap=\"reveal\"", "data-blok-swap-row", "data-blok-swap-figure"],
+    "timeline-03": ["data-blok-progress", "data-blok-sides", "data-blok-side"],
+    "timeline-04": ["data-blok-split=\"lines\""],
+    "timeline-05": ["data-blok-hscroll", "data-blok-hscroll-track"],
+    "timeline-06": ["data-blok-slider", "data-blok-slider-card", "data-blok-slider-next"],
+    "carousel-02": ["data-blok-slider-track", "data-blok-slider-prev", "data-blok-slider-count"],
+    "carousel-03": ["data-blok-slider-card"],
+    "features-44": ["data-blok-scroll=\"zoom\""],
+    "hero-26": ["data-blok-open", "data-blok-open-half", "data-blok-open-word"],
+    "hero-27": ["data-blok-steps", "data-blok-steps-still"],
+    "features-45": ["data-blok-columns", "data-blok-columns-item", "data-blok-columns-media"],
+    "features-46": ["data-blok-deck", "data-blok-deck-card"],
+    "features-47": ["data-blok-lens", "data-blok-lens-reveal"],
+    "features-48": ["data-blok-accordion", "data-blok-acc-panel"],
+    "features-49": ["data-blok-steps-trigger", "data-blok-steps-still"],
+    "features-50": ["data-blok-accordion", "data-blok-acc-item"],
+    "features-51": ["data-blok-flip", "data-blok-flip-front", "data-blok-flip-back"],
+    "features-52": ["data-blok-read", "data-blok-read-line"],
+    "work-08": ["data-blok-tabs", "data-blok-tab", "data-blok-tab-panel"],
+    "careers-07": ["data-blok-filter", "data-blok-filter-chip", "data-blok-filter-card", "data-blok-hover-reveal", "data-blok-hover-media"],
+    "careers-08": ["data-blok-filter", "data-blok-filter-chip", "data-blok-filter-card", "data-blok-tilt"],
+    "careers-09": ["data-blok-accordion", "data-blok-acc-trigger"],
+    "careers-11": ["data-blok-deck", "data-blok-deck-card"],
+    "careers-13": ["data-blok-accordion", "data-blok-acc-panel"],
+    "careers-14": ["data-blok-tabs", "data-blok-tab", "data-blok-tab-panel"],
+    "careers-16": ["data-blok-flip", "data-blok-flip-front", "data-blok-flip-back"],
+    "services-01": ["data-blok-hover-reveal", "data-blok-hover-row", "data-blok-hover-media"],
+    "team-06": ["data-blok-hscroll", "data-blok-hscroll-track"],
+    "nav-07": ["data-blok-drops", "data-blok-drop-panel", 'data-blok-drop="level"', "data-blok-drop-mark"],
+    "nav-08": ["data-blok-drops", "data-blok-drop-panel", 'data-blok-drop="level"'],
+    "nav-09": ["data-blok-drops", "data-blok-drop-panel", 'data-blok-drop="level"'],
+    "hero-52": ["data-blok-cycle", "data-blok-cycle-word", "data-blok-count"],
+    "hero-53": ["data-blok-pointer", "data-blok-pointer-layer"],
+    "hero-54": ["data-blok-marquee"],
+    "hero-56": ["data-blok-count", "data-blok-marquee"],
+    "features-61": ["data-blok-count"],
+    "features-62": ["data-blok-pointer", "data-blok-pointer-layer"],
+    "tabs-03": ["data-blok-columns", "data-blok-columns-item", "data-blok-columns-media"],
+    "stats-10": ["data-blok-count"],
+    "process-05": ["data-blok-peek", "data-blok-peek-card", "data-blok-peek-media"],
+    "about-01": ["data-blok-lightbox", "data-blok-lightbox-item", "data-blok-lightbox-dialog"],
+    "gallery-15": ["data-blok-marquee"],
+    "process-06": ['data-blok-guide="curve"', "data-blok-guide-tab", "data-blok-guide-panel", "data-blok-guide-hotspot", "data-blok-guide-node"],
+    "process-07": ['data-blok-guide="elbow"', "data-blok-guide-tab", "data-blok-guide-panel", "data-blok-guide-hotspot", "data-blok-guide-node"],
+    "process-08": ['data-blok-guide="step"', "data-blok-guide-tab", "data-blok-guide-panel", "data-blok-guide-hotspot", "data-blok-guide-node"],
+    "nav-10": ["data-blok-drops", "data-blok-drop-panel", "data-blok-drop-mark", "data-blok-drop-label"],
+    "work-09": ["data-blok-sheet", "data-blok-sheet-item", "data-blok-sheet-panel", "data-blok-sheet-dialog", "data-blok-sheet-mount"],
+    "work-10": ["data-blok-modes", "data-blok-mode", "data-blok-modes-panel"],
+    "carousel-04": ["data-blok-curve", "data-blok-slide", "data-blok-curve-prev", "data-blok-curve-next"],
+  };
+  for (const [id, needles] of Object.entries(expect)) {
+    const spec = specs.find((item) => item.id === id);
+    assert.ok(spec, id);
+    const html = generateHtml(spec, ctx);
+    for (const needle of needles) assert.ok(html.includes(needle), `${id} missing ${needle}`);
+  }
+});
+
+test("motion runtime handles every attribute named in its header", () => {
+  const src = readFileSync(new URL("../src/runtime/motion-core.js", import.meta.url), "utf8");
+  const header = src.slice(0, src.indexOf("function createBloksetMotion"));
+  const body = src.slice(header.length);
+  const attrs = [...new Set([...header.matchAll(/data-blok-[a-z0-9-]+/g)].map((match) => match[0]))];
+  assert.ok(attrs.length >= 40);
+  for (const attr of attrs) {
+    const rest = attr.slice("data-blok-".length);
+    const dataset = "blok" + rest.replace(/(^|-)([a-z0-9])/g, (_, _dash, char) => char.toUpperCase());
+    assert.ok(body.includes(attr) || body.includes(dataset), attr);
+  }
+});
+
+test("Webflow footer code fits the 50,000 character custom code limit", () => {
+  const footer = webflowFooterCode();
+  assert.ok(footer.length <= WEBFLOW_CUSTOM_CODE_LIMIT, `${footer.length} characters`);
+  assert.ok(footer.length < 49800, `${footer.length} characters leaves little room before the limit`);
+  const script = footer.match(/<script>\n([\s\S]*)\n<\/script>/)[1];
+  new Function(script);
+  assert.match(script, /createBloksetMotion/);
+  assert.match(script, /data-blok-stack/);
+  assert.match(script, /opacity:\s*1/);
+  assert.equal(script.includes("Behaviours are opt-in"), false);
+  assert.equal(footer.includes("MOTION_URL"), false);
 });
 
 test("project config: styles: none keeps class names but drops button CSS", () => {

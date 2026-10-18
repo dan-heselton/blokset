@@ -1,0 +1,242 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root { color-scheme: light dark; font: 12px/1.4 Inter, system-ui, sans-serif; }
+  body { margin: 0; padding: 12px; }
+  h1 { font-size: 14px; margin: 0 0 8px; }
+  label { display: block; margin: 8px 0 4px; }
+  input, select, textarea, button { font: inherit; width: 100%; box-sizing: border-box; }
+  input, select, textarea { padding: 6px 8px; }
+  textarea { min-height: 72px; resize: vertical; }
+  .row { display: flex; gap: 8px; margin-top: 8px; }
+  button { padding: 8px; cursor: pointer; }
+  ul { list-style: none; margin: 8px 0 0; padding: 0; max-height: 280px; overflow: auto; }
+  li { padding: 6px 4px; border-bottom: 1px solid rgba(127, 127, 127, 0.25); cursor: pointer; }
+  li small { display: block; opacity: 0.7; }
+  li.is-on { background: rgba(127, 127, 127, 0.15); }
+  #hint, #status { margin-top: 8px; opacity: 0.8; }
+  #status { min-height: 2.4em; }
+</style>
+</head>
+<body>
+  <h1>Blokset</h1>
+  <label for="base">Gallery</label>
+  <input id="base" value="http://localhost:4400/figma" spellcheck="false">
+  <div class="row">
+    <select id="framework"></select>
+    <button type="button" id="reload">Reload</button>
+  </div>
+  <label for="query">Search</label>
+  <input id="query" placeholder="hero, pricing, faq">
+  <ul id="list"></ul>
+  <label for="paste">Variant selection from the gallery</label>
+  <textarea id="paste" placeholder='{ "blokset": "hero-05", "framework": "client-first", "selection": {} }'></textarea>
+  <div class="row">
+    <button type="button" id="insert">Insert</button>
+    <button type="button" id="kit">Build kit</button>
+    <button type="button" id="update">Update kit</button>
+  </div>
+  <p id="hint">Build kit in the Blokset file, publish it as a library, then Insert in a project file.</p>
+  <p id="status">Loading catalog…</p>
+  <script>
+    var base = document.getElementById("base");
+    var framework = document.getElementById("framework");
+    var query = document.getElementById("query");
+    var list = document.getElementById("list");
+    var paste = document.getElementById("paste");
+    var status = document.getElementById("status");
+    var catalog = null;
+    var selected = null;
+    var kitDoc = null;
+
+    try { base.value = localStorage.getItem("blokset-base") || base.value; } catch (error) {}
+
+    function say(text) {
+      var el = document.getElementById("status");
+      if (el) el.textContent = text;
+    }
+
+    function wait() {
+      return new Promise(function (resolve) {
+        function onMessage(event) {
+          var message = event.data.pluginMessage;
+          if (!message || message.type !== "result") return;
+          window.removeEventListener("message", onMessage);
+          resolve(message);
+        }
+        window.addEventListener("message", onMessage);
+      });
+    }
+
+    function pluginFetch(url) {
+      return new Promise(function (resolve, reject) {
+        var request = String(Math.random());
+        var timer = setTimeout(function () {
+          window.removeEventListener("message", onMessage);
+          reject(new Error("No response from the plugin for " + url));
+        }, 8000);
+        function onMessage(event) {
+          var message = event.data && event.data.pluginMessage;
+          if (!message || message.type !== "json" || message.request !== request) return;
+          clearTimeout(timer);
+          window.removeEventListener("message", onMessage);
+          if (message.error) reject(new Error(message.error));
+          else resolve(message.data);
+        }
+        window.addEventListener("message", onMessage);
+        parent.postMessage({ pluginMessage: { type: "load-json", url: url, request: request } }, "*");
+      });
+    }
+
+    async function loadJson(url) {
+      try {
+        var response = await fetch(url);
+        if (!response.ok) throw new Error(response.status + " " + url);
+        return response.json();
+      } catch (directError) {
+        try {
+          return await pluginFetch(url);
+        } catch (pluginError) {
+          throw new Error((pluginError && pluginError.message) || (directError && directError.message) || "Could not load " + url);
+        }
+      }
+    }
+
+    async function loadCatalog() {
+      say("Loading catalog…");
+      try { localStorage.setItem("blokset-base", base.value.replace(/\/$/, "")); } catch (error) {}
+      catalog = await loadJson(base.value.replace(/\/$/, "") + "/index.json");
+      framework.replaceChildren();
+      (catalog.frameworks || []).forEach(function (item) {
+        var option = document.createElement("option");
+        option.value = item.name;
+        option.textContent = item.label;
+        framework.appendChild(option);
+      });
+      framework.value = catalog.defaultFramework || (catalog.frameworks && catalog.frameworks[0] && catalog.frameworks[0].name) || "client-first";
+      kitDoc = null;
+      render();
+      say((catalog.components || []).length + " components");
+    }
+
+    function render() {
+      var term = query.value.trim().toLowerCase();
+      list.replaceChildren();
+      (catalog.components || []).filter(function (item) {
+        if (!term) return true;
+        return (item.name + " " + item.id + " " + item.category + " " + item.description).toLowerCase().indexOf(term) !== -1;
+      }).forEach(function (item) {
+        var row = document.createElement("li");
+        row.innerHTML = item.name + "<small>" + item.id + " · " + item.category + "</small>";
+        if (selected && selected.id === item.id) row.className = "is-on";
+        row.addEventListener("click", function () { selected = item; render(); });
+        list.appendChild(row);
+      });
+    }
+
+    function activeFramework(override) {
+      if (override) return override;
+      if (framework.value) return framework.value;
+      if (catalog && catalog.defaultFramework) return catalog.defaultFramework;
+      return "client-first";
+    }
+
+    function docUrl(file, override) {
+      return base.value.replace(/\/$/, "") + "/" + activeFramework(override) + "/" + file;
+    }
+
+    async function variables() {
+      if (kitDoc) return kitDoc;
+      kitDoc = await loadJson(docUrl("variables.json"));
+      return kitDoc;
+    }
+
+    async function documentFor(id, override) {
+      return loadJson(docUrl(id + ".json", override));
+    }
+
+    function pointer() {
+      var text = paste.value.trim();
+      if (!text) return null;
+      var data = JSON.parse(text);
+      if (!data || !data.blokset) throw new Error("Paste a Blokset Figma payload");
+      return data;
+    }
+
+    async function insertOne(id, selection, page, frameworkName) {
+      var doc = await documentFor(id, frameworkName);
+      var kit = await variables();
+      var pending = wait();
+      parent.postMessage({ pluginMessage: { type: "upsert", doc: doc, kit: kit, selection: selection || {}, page: page } }, "*");
+      var result = await pending;
+      if (result.status === "error") throw new Error(result.error || id);
+      return result;
+    }
+
+    async function insertFromLibrary() {
+      var data = null;
+      try { data = pointer(); } catch (error) { say(error.message); return; }
+      var item = selected;
+      if (!item && data && catalog) {
+        var components = catalog.components || [];
+        for (var i = 0; i < components.length; i++) if (components[i].id === data.blokset) item = components[i];
+      }
+      if (!item) { say("Pick a component"); return; }
+      if (data && data.framework) framework.value = data.framework;
+      say("Inserting " + item.name + "…");
+      var doc = await documentFor(item.id, data && data.framework);
+      var main = (doc.components && doc.components[0]) || {};
+      var pending = wait();
+      parent.postMessage({ pluginMessage: { type: "library-insert", name: doc.meta.name, axes: main.axes || [], selection: (data && data.selection) || {} } }, "*");
+      var result = await pending;
+      if (result.status === "error") throw new Error(result.error || item.name);
+      say("Inserted " + ((result && result.name) || item.name));
+    }
+
+    document.getElementById("reload").addEventListener("click", function () {
+      loadCatalog().catch(function (error) { say(error.message); });
+    });
+    framework.addEventListener("change", function () { kitDoc = null; });
+    query.addEventListener("input", render);
+    document.getElementById("insert").addEventListener("click", function () {
+      insertFromLibrary().catch(function (error) { say(error.message); });
+    });
+    async function buildKit() {
+      if (!catalog) await loadCatalog();
+      var items = catalog.components || [];
+      var failed = [];
+      for (var i = 0; i < items.length; i++) {
+        say((i + 1) + " / " + items.length + "  " + items[i].id);
+        try {
+          await insertOne(items[i].id, { breakpoint: "Desktop" }, items[i].category);
+        } catch (error) {
+          failed.push(items[i].id + " (" + (error && error.message ? error.message : "failed") + ")");
+        }
+      }
+      try {
+        var pending = wait();
+        parent.postMessage({ pluginMessage: { type: "cover", count: items.length } }, "*");
+        await pending;
+      } catch (error) {
+        failed.push("cover (" + (error && error.message ? error.message : "failed") + ")");
+      }
+      var done = items.length - failed.filter(function (item) { return item.indexOf("cover (") !== 0; }).length;
+      if (failed.length) say("Finished " + done + " / " + items.length + ". Failed: " + failed.join("; "));
+      else say("Kit updated. " + items.length + " components. Publish this file: Assets → Library → Publish.");
+    }
+    document.getElementById("kit").addEventListener("click", function () {
+      buildKit().catch(function (error) { say(error.message); });
+    });
+    document.getElementById("update").addEventListener("click", function () {
+      buildKit().catch(function (error) { say(error.message); });
+    });
+    function boot() {
+      loadCatalog().catch(function (error) { say(error && error.message ? error.message : "Could not load the catalog"); });
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+    else boot();
+  </script>
+</body>
+</html>

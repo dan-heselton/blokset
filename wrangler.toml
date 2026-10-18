@@ -1,0 +1,5 @@
+# Cloudflare Pages — site publish root is the gallery build output.
+# Deploy: npm run build && npx wrangler pages deploy
+name = "blokset"
+compatibility_date = "2026-10-18"
+pages_build_output_dir = "dist/gallery"

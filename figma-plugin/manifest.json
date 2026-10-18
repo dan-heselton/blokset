@@ -1,0 +1,21 @@
+{
+  "name": "Blokset",
+  "id": "blokset-components",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "permissions": ["teamlibrary"],
+  "networkAccess": {
+    "allowedDomains": [
+      "http://localhost:4400",
+      "https://images.unsplash.com",
+      "https://placehold.co"
+    ],
+    "devAllowedDomains": [
+      "http://localhost:4400"
+    ],
+    "reasoning": "Reads generated component JSON from the local Blokset gallery and fills image layers from demo photographs."
+  }
+}

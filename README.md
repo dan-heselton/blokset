@@ -1,10 +1,10 @@
 # Blokset
 
-One component spec → React, Astro, HTML/CSS, vanilla JS and Webflow, in any class framework.
+One component spec → React, Astro, HTML/CSS, vanilla JS, Webflow, and Figma, in any class framework.
 
 ```bash
 npm install
-npm run dev        # gallery at http://localhost:4400, live reload
+npm run dev        # site at http://localhost:4400, gallery at /gallery, live reload
 npm run check      # tests + strict TypeScript on the React output + Astro compile
 ```
 
@@ -65,7 +65,9 @@ import Stats04 from "./blokset/Stats04.astro";
 - **Vanilla JS**: `render(props)` returns HTML, `mount(target, props)` inserts it and starts motion.
 - **Webflow**: use the gallery's *Copy to Webflow* button (Chrome, normal tab), then paste in the
   Designer. Paste `dist/<framework>/webflow/footer-code.html` once into Site settings → Footer
-  for motion.
+  for motion. That one snippet runs every component. Delete any older footer snippet first.
+- **Figma**: set the gallery output to Figma and choose *Copy for Figma*, then paste that into the
+  Blokset plugin. The plugin builds the component in the open file. See below.
 
 ## Per-project config
 
@@ -211,11 +213,49 @@ literals. Unmapped `font-family` values are omitted, which lets the site's body 
 Copy to Webflow in the gallery uses whichever site the running config was synced from. Pasting
 into a different site drops those variable ids.
 
+## Figma
+
+The same spec becomes an auto-layout component. Color themes (`themeVariant()`) are modes on the
+`Blokset/Theme` variable collection, not variants. Other groups (`align`, `columns`, …) plus a
+`Breakpoint` property (Desktop 1440, Tablet 768, Mobile 390) are the variants. Layer names are the
+framework's class names, so a Client-First file lines up with the Webflow paste. Text and show/hide
+props are component properties. A repeated list becomes a nested component with one instance per
+default item. Buttons are instances of `Blokset/Button`.
+
+```bash
+npm run dev          # gallery and the JSON the plugin reads, at http://localhost:4400/figma
+```
+
+In Figma desktop: Plugins → Development → Import plugin from manifest, and choose
+`figma-plugin/manifest.json`. Run `npm run build` once so `figma-plugin/code.js` exists.
+
+Sources live in one kit file. Open that file, reload the plugin, and run **Build kit**. It fills
+one page per category: sections in a row, and list parts (the figure, the cards) in a row beneath
+them. **Update kit** skips a component whose content hash has not changed, and moves an existing
+set onto its category page. Then in Figma choose Assets → Library → Publish. The plugin cannot
+publish.
+
+In a project file, enable that library and press **Insert**. The highlighted row places an instance
+of that section from the published library, to the right of what is already on the page. Nested
+parts come with the published set. A gallery paste only sets the variant (`breakpoint`, theme, and
+the other axes) after the instance exists. If the library is not enabled, Insert leaves the canvas
+alone and tells you to build, publish, and enable it.
+
+`blokset.config.js` → `figma.fonts` maps a type token to a font installed in Figma
+(`"font-mono": "Roboto Mono"`). Uninstalled families fall back to Inter.
+
+Figma has no breakpoints, motion, or sticky positioning. Each breakpoint is a variant at a fixed
+width. `calc()` and `svh` heights become fixed pixel values. Motion is written into the component
+description, from the same note as **Copy animation prompt**. Lists have as many instances as the
+spec's default array; duplicate an instance to add one.
+
 ## Motion runtime
 
 Attributes, not per-component JS, so behaviour is identical in Webflow and code:
 `data-blok-enter`, `data-blok-scroll="parallax"`, `data-blok-marquee`, `data-blok-count`,
 `data-blok-split="words"`, `data-blok-hover-reveal`. Everything respects `prefers-reduced-motion`.
+
+At the bottom of a component in the gallery, next to **Copy footer code**, **Copy animation prompt** is the motion for that component only. Paste it into Webflow or another builder to recreate the same motion on a section that is already laid out.
 
 ## Migrating from Component Forge
 
@@ -224,7 +264,7 @@ Pages already pasted into Webflow carry `data-forge-*` attributes and load the o
 ## Roadmap
 
 1. Push the Blokset variable collection into a live Webflow site (class sync already pastes stored styles and binds mapped tokens)
-2. Figma: plugin that builds auto-layout components + variables from the same specs
+2. Publish the Figma plugin and kit (the local plugin and kit build already run from these specs)
 3. Tailwind output for React/Astro
 4. shadcn-style registry (`npx shadcn add <url>/hero-05`)
 5. Sanity schema generation from spec props

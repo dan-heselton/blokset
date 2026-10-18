@@ -1,3 +1,5 @@
+import { parseGridTemplate } from "./figma-style.js";
+
 const TAGS = new Set(["div", "h1", "h2", "h3", "h4", "p", "a", "img"]);
 const ROLES = new Set(["section", "gutter", "container", "section-padding"]);
 const SHORTHANDS = new Set(["padding", "margin", "inset", "border", "gap", "border-radius", "background", "font", "flex", "grid-column", "grid-row", "border-top", "border-bottom", "border-left", "border-right"]);
@@ -18,6 +20,9 @@ export function validateSpec(spec) {
       for (const prop of Object.keys(style[bp] || {})) {
         if (SHORTHANDS.has(prop)) err(`${where}: use longhand properties instead of "${prop}"`);
         if (bp !== "base" && !(prop in base)) err(`${where}: "${prop}" is set at ${bp} but missing from base`);
+        if (prop === "grid-template-columns" && !parseGridTemplate(style[bp][prop])) {
+          err(`${where}: grid-template-columns "${style[bp][prop]}" cannot be built as a Figma grid`);
+        }
       }
     }
   };
@@ -86,6 +91,7 @@ export function validateSpec(spec) {
   const camel = (name) => name.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
   for (const [group, def] of Object.entries(spec.variants || {})) {
     if (propNames.has(group) || propNames.has(camel(group))) err(`variant group "${group}" clashes with a prop name`);
+    if (group === "theme" && !def?.palette) err(`variant "theme" must be created with themeVariant() so Figma can bind color modes`);
     if (!def?.options || !Object.prototype.hasOwnProperty.call(def.options, def.default)) err(`variant "${group}": default must be an option`);
     for (const [option, opt] of Object.entries(def?.options || {})) {
       if (!/^[a-z][a-z0-9-]*$/.test(option)) err(`variant option "${option}" must be kebab-case`);

@@ -5,7 +5,7 @@ import { createTokens } from "./tokens.js";
 import { bindTokenVariables, variablesFromExport } from "../sync.js";
 
 export const ROOT = resolve(new URL("../..", import.meta.url).pathname);
-export const ALL_TARGETS = ["react", "astro", "html", "vanilla", "webflow"];
+export const ALL_TARGETS = ["react", "astro", "html", "vanilla", "webflow", "figma"];
 
 const load = async (file) => (await import(pathToFileURL(file).href)).default;
 

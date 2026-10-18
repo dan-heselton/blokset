@@ -1,15 +1,20 @@
 // Orchestrates builds: every framework × target into dist/, plus the gallery.
-import { mkdirSync, writeFileSync, rmSync, copyFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, copyFileSync, readdirSync, readFileSync as readSource } from "node:fs";
 import { join, dirname } from "node:path";
 import { ROOT, loadConfig, loadFrameworks, loadComponents, createContext } from "./core/config.js";
-import { resolveComponent, usesRuntime, allSelections, selectionKey } from "./core/resolve.js";
+import { resolveComponent, usesRuntime, allSelections, selectionKey, resolveButtons } from "./core/resolve.js";
+import { button as buttonPrimitive } from "./core/primitives.js";
+import { BUTTON_ROLES } from "./gallery/button-classes.js";
 import { sharedCss } from "./core/css.js";
 import { generateReact, generateAstro, generateHtml, generateVanilla, componentCss, pascal } from "./generators/code.js";
 import { generateWebflow } from "./generators/webflow.js";
+import { generateFigma, variablesDoc, buttonDoc, figmaCatalog, figmaPointer, fontsOf } from "./generators/figma.js";
+import { loadDemoImages } from "./generators/image-meta.js";
 import { reuseCounts } from "./sync.js";
 import { componentManifest, variablesManifest } from "./generators/webflow-manifest.js";
 import { motionEsm, motionDts, motionGlobal, webflowFooterCode, gsapCdnTags } from "./runtime/build-runtime.js";
-import { renderGallery } from "./gallery/template.js";
+import { renderGallery, specimenDocument } from "./gallery/template.js";
+import { MARKETING_IDS, renderMarketing } from "./site/pages.js";
 
 const SHARED_INDEX = `@import "./tokens.css";\n@import "./utilities.css";\n@import "./buttons.css";\n`;
 
@@ -33,7 +38,7 @@ const demoPage = (title, head, body) => `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,500;1,6..72,560&display=swap" rel="stylesheet">
 <style>*,*::before,*::after{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}img{max-width:100%}</style>
 <link rel="stylesheet" href="./blokset/index.css">
 ${head}
@@ -88,6 +93,12 @@ ${specs.map((_, i) => `mount${i}("#app");`).join("\n")}
 </script>`
     );
   }
+  if (target === "figma") {
+    for (const s of specs) {
+      files[`${s.id}.json`] = JSON.stringify(generateFigma(s, ctx, resolved.get(s.id)));
+    }
+    files["variables.json"] = JSON.stringify({ variables: variablesDoc(ctx), button: buttonDoc(ctx), fonts: fontsOf(ctx) }, null, 2);
+  }
   if (target === "webflow") {
     for (const s of specs) {
       const resolvedSpec = resolved.get(s.id);
@@ -100,10 +111,45 @@ ${specs.map((_, i) => `mount${i}("#app");`).join("\n")}
   return files;
 }
 
+const cssBody = (style, tokens) =>
+  Object.entries(style?.base || {}).map(([key, value]) => `  ${key}: ${tokens.css(value)};`).join("\n");
+
+/** Button chains, synced chain keys, and preview declarations for the gallery panel. */
+function buttonGalleryData(config, frameworks) {
+  const chains = {};
+  const synced = {};
+  const snapshot = config.webflow?.styles || {};
+  let shipStyles = true;
+  let preview = { base: "", variants: {} };
+  for (const name of config.frameworks) {
+    const ctx = createContext(config, frameworks[name]);
+    const buttons = resolveButtons(ctx);
+    chains[name] = buttons.chains;
+    const keys = Object.values(buttons.chains).flatMap((chain) => chain.map((_, index) => chain.slice(0, index + 1).join(".")));
+    synced[name] = [...new Set(keys.filter((key) => snapshot[key]))];
+    if (name === config.framework) {
+      shipStyles = buttons.styles !== "none";
+      preview = {
+        base: cssBody(buttonPrimitive.base, ctx.tokens),
+        variants: Object.fromEntries(
+          Object.entries(buttonPrimitive.variants)
+            .filter(([, style]) => style)
+            .map(([role, style]) => [role, cssBody(style, ctx.tokens)])
+        ),
+      };
+    }
+  }
+  return { previewFramework: config.framework, roles: BUTTON_ROLES, chains, shipStyles, synced, preview };
+}
+
 /** Static preview per variant combination, plus a Webflow payload for every framework. */
-function variantAssets(specs, config, frameworks) {
+function variantAssets(specs, config, frameworks, demoImages) {
   const previewCtx = createContext(config, frameworks[config.framework]);
-  const contexts = Object.fromEntries(config.frameworks.map((name) => [name, createContext(config, frameworks[name])]));
+  const contexts = Object.fromEntries(config.frameworks.map((name) => {
+    const ctx = createContext(config, frameworks[name]);
+    ctx.demoImages = demoImages;
+    return [name, ctx];
+  }));
   const previews = {};
   const webflow = {};
   for (const spec of specs) {
@@ -134,6 +180,7 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
   const config = await loadConfig(configPath);
   const frameworks = await loadFrameworks();
   const specs = await loadComponents();
+  const demoImages = await loadDemoImages(specs, { log });
   rmSync(out, { recursive: true, force: true });
 
   const outputs = {}; // id → framework → target → text
@@ -141,6 +188,7 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
     const fw = frameworks[name];
     if (!fw) throw new Error(`Unknown framework "${name}". Available: ${Object.keys(frameworks).join(", ")}`);
     const ctx = createContext(config, fw);
+    ctx.demoImages = demoImages;
     for (const target of config.targets) {
       writeFiles(join(out, name, target), targetFiles(specs, ctx, target));
     }
@@ -154,6 +202,7 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
         html: generateHtml(s, ctx, r),
         css: componentCss(s, r, ctx),
         vanilla: generateVanilla(s, ctx, r),
+        figma: figmaPointer(s, name),
       };
     }
     if (config.webflow?.styles) {
@@ -167,37 +216,65 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
 
   // Gallery previews the default framework.
   const ctx = createContext(config, frameworks[config.framework]);
+  ctx.demoImages = demoImages;
   const shared = sharedCss(ctx);
   const galleryDir = join(out, "gallery");
-  const variants = variantAssets(specs, config, frameworks);
-  const previewCss = [shared["tokens.css"], shared["utilities.css"], shared["buttons.css"], ...specs.map((s) => componentCss(s, resolveComponent(s, ctx), ctx))].join("\n");
+  const variants = variantAssets(specs, config, frameworks, demoImages);
+  const sheet = (list) => [shared["tokens.css"], shared["utilities.css"], shared["buttons.css"], ...list.map((s) => componentCss(s, resolveComponent(s, ctx), ctx))].join("\n");
+  const previewCss = sheet(specs);
+  const siteSpecs = specs.filter((spec) => MARKETING_IDS.includes(spec.id));
+  const marketing = { specs, ctx, dev };
+  const previews = Object.fromEntries(specs.map((s) => [s.id, generateHtml(s, ctx)]));
   writeFiles(galleryDir, {
     "preview.css": previewCss,
-    "index.html": renderGallery({
+    "site.css": sheet(siteSpecs),
+    "index.html": renderMarketing({ ...marketing, page: "home" }),
+    "pricing.html": renderMarketing({ ...marketing, page: "pricing" }),
+    "gallery.html": renderGallery({
       specs,
       config,
       frameworks: config.frameworks.map((n) => ({ name: n, label: frameworks[n].label })),
       previewCss,
-      previews: Object.fromEntries(specs.map((s) => [s.id, generateHtml(s, ctx)])),
+      previews,
       outputs,
       variantPreviews: variants.previews,
       variantWebflow: variants.webflow,
       footerCode: webflowFooterCode(),
+      buttons: buttonGalleryData(config, frameworks),
       dev,
     }),
     "motion.global.js": motionGlobal(),
+    // Pretty URLs for Cloudflare Pages and Netlify (same syntax).
+    "_redirects": [
+      "/gallery /gallery.html 200",
+      "/pricing /pricing.html 200",
+    ].join("\n") + "\n",
   });
+  // Specimens + copy payloads are separate files so gallery.html stays under Cloudflare Pages' 25 MiB limit.
+  const specimensDir = join(galleryDir, "specimens");
+  const dataDir = join(galleryDir, "data");
+  mkdirSync(specimensDir, { recursive: true });
+  mkdirSync(dataDir, { recursive: true });
+  for (const spec of specs) {
+    writeFileSync(join(specimensDir, `${spec.id}.html`), specimenDocument(previews[spec.id] || ""));
+    writeFileSync(join(dataDir, `${spec.id}.json`), JSON.stringify({
+      outputs: outputs[spec.id] || {},
+      webflow: variants.webflow[spec.id] || {},
+    }));
+  }
   mkdirSync(join(galleryDir, "vendor"), { recursive: true });
   for (const f of ["gsap.min.js", "ScrollTrigger.min.js"]) copyFileSync(join(ROOT, "node_modules/gsap/dist", f), join(galleryDir, "vendor", f));
-  // Single-file copy with scripts inlined, for sharing without a server.
-  const { readFileSync } = await import("node:fs");
-  const inline = (f) => `<script>${readFileSync(join(galleryDir, f), "utf8").replace(/<\/script/gi, "<\\/script")}</script>`;
-  const standalone = readFileSync(join(galleryDir, "index.html"), "utf8")
-    .replace('<link rel="stylesheet" href="./preview.css">', () => `<style>${readFileSync(join(galleryDir, "preview.css"), "utf8")}</style>`)
-    .replace('<script src="./vendor/gsap.min.js"></script>', () => inline("vendor/gsap.min.js"))
-    .replace('<script src="./vendor/ScrollTrigger.min.js"></script>', () => inline("vendor/ScrollTrigger.min.js"))
-    .replace('<script src="./motion.global.js"></script>', () => inline("motion.global.js"));
-  writeFileSync(join(galleryDir, "standalone.html"), standalone);
-  log(`✓ gallery        ${specs.length} components → dist/gallery/index.html (+ standalone.html)`);
+  for (const dir of ["shots", "marks", "art"]) {
+    mkdirSync(join(galleryDir, dir), { recursive: true });
+    for (const f of readdirSync(join(ROOT, "src/site", dir))) copyFileSync(join(ROOT, "src/site", dir, f), join(galleryDir, dir, f));
+  }
+  writeFiles(join(out, "figma"), {
+    "index.json": JSON.stringify(figmaCatalog(specs, config, frameworks), null, 2),
+  });
+  const pluginDir = join(ROOT, "figma-plugin");
+  mkdirSync(pluginDir, { recursive: true });
+  writeFileSync(join(pluginDir, "code.js"), readSource(join(ROOT, "src/figma-runtime/builder.js"), "utf8"));
+  log(`✓ gallery        ${specs.length} components → dist/gallery/ (home, pricing, gallery)`);
+  log(`✓ figma          ${specs.length} components → dist/<framework>/figma/`);
   return { config, specs };
 }

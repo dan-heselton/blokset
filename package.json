@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "One component spec → React, Astro, HTML/CSS, vanilla JS and Webflow, in any class framework.",
+  "description": "One component spec → React, Astro, HTML/CSS, vanilla JS, Webflow, and Figma, in any class framework.",
   "bin": { "blokset": "./src/cli.js" },
   "scripts": {
     "dev": "node src/cli.js dev",
@@ -12,7 +12,8 @@
     "add": "node src/cli.js add",
     "test": "node --test tests/*.test.js",
     "typecheck": "node src/cli.js build && tsc -p tsconfig.json",
-    "check": "npm run test && npm run typecheck"
+    "check": "npm run test && npm run typecheck",
+    "deploy:cf": "npm run build && npx wrangler pages deploy"
   },
   "dependencies": {
     "gsap": "^3.12.5"

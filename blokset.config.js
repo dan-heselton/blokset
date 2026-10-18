@@ -7,7 +7,7 @@ export default {
   // Also build these into dist/ and the gallery's framework switcher.
   frameworks: ["bem", "flowkit"],
 
-  targets: ["react", "astro", "html", "vanilla", "webflow"],
+  targets: ["react", "astro", "html", "vanilla", "webflow", "figma"],
 
   // Token overrides. A string replaces the value. An object can map the token:
   // `css` is used by code outputs, `webflow` is a destination-site variable name or id.

@@ -54,15 +54,42 @@ than the section. Full-bleed parts (marquees) can sit outside `gutter` but insid
   Add a token there rather than hard-coding a brand color.
 - Prefer flex; use grid only for real 2D layouts. Keep CSS Webflow-compatible (no ::before, no
   keyframes, no selectors).
+- Figma is generated from the same tree. `grid-template-columns` must be tracks Figma can build:
+  `1fr`, `1.3fr`, `repeat(n, minmax(0, 1fr))`, `auto`, or a `rem`/`px` length. A `theme` group
+  comes from `themeVariant()` so it becomes variable modes. Keep non-theme options × 3 breakpoints
+  at 48 variants or fewer. Motion is described on the component; it is not a Figma interaction.
 
 ## Motion and behaviour
 - `motion.enter` (staggered header entrance), `motion.reveal` (list items), `motion.scroll` (parallax).
 - Runtime behaviours via `attrs`: `data-blok-marquee` (+ `data-blok-speed`, `data-blok-direction="reverse"`),
-  `data-blok-count`, `data-blok-split="words"|"rise"`, `data-blok-reveal="clip"`, `data-blok-trail`,
+  `data-blok-count`, `data-blok-split="words"|"rise"|"chars"|"lines"|"fill"|"scrub"`, `data-blok-scramble`,
+  `data-blok-depth`, `data-blok-pointer` > `data-blok-pointer-layer`, `data-blok-scroll="zoom"`,
+  `data-blok-expand-media`, `data-blok-velocity` (on a marquee track), `data-blok-reveal="clip"`, `data-blok-trail`,
   `data-blok-stack`, `data-blok-hscroll`, `data-blok-accordion`, `data-blok-billing`, `data-blok-compare`,
   `data-blok-progress`, `data-blok-fit`, `data-blok-tabs`, `data-blok-carousel`, `data-blok-filter`,
-  `data-blok-spotlight`, `data-blok-expand`, `data-blok-lightbox`, `data-blok-swap`, `data-blok-meters`,
-  `data-blok-cycle`, `data-blok-scrub`, `data-blok-hover-reveal` > `data-blok-hover-row` > `data-blok-hover-media`.
+  `data-blok-spotlight`, `data-blok-expand`, `data-blok-lightbox`,
+  `data-blok-guide` (`="curve"`|`"elbow"`|`"step"`) > `data-blok-guide-tab`, `data-blok-guide-panel`, `data-blok-guide-hotspot`, `data-blok-guide-node` (SVG line morphs tab to hotspot),
+  `data-blok-drop-label` (optional; swaps to inverse color when the drop is open),
+  `data-blok-sheet` > `data-blok-sheet-item`, `data-blok-sheet-panel`, `data-blok-sheet-dialog`, `data-blok-sheet-mount`, `data-blok-sheet-close`,
+  `data-blok-modes` > `data-blok-mode`, `data-blok-modes-panel`,
+  `data-blok-curve` > `data-blok-slide`, `data-blok-curve-prev`, `data-blok-curve-next`,
+  `data-blok-swap` (`="reveal"` keeps the figure closed until hover or focus), `data-blok-meters`,
+  `data-blok-cycle`, `data-blok-scrub`, `data-blok-hover-reveal` > `data-blok-hover-row` > `data-blok-hover-media`,
+  `data-blok-menu` (`="overlay"` keeps it closed on desktop) > `data-blok-menu-toggle`, `data-blok-menu-panel`,
+  `data-blok-drops` > `data-blok-drop` > `data-blok-drop-trigger`, `data-blok-drop-panel`
+  (a panel may contain another `data-blok-drop`; optional `data-blok-drop-mark` fades in while open),
+  `data-blok-peek` > `data-blok-peek-card` > `data-blok-peek-media` (hover reveals the card media; the first starts open),
+  `data-blok-slider` > `data-blok-slider-track` > `data-blok-slider-card`, with `data-blok-slider-prev`, `data-blok-slider-next`, `data-blok-slider-count`,
+  `data-blok-sides` > `data-blok-side` and optional `data-blok-side-dot`,
+  `data-blok-open` > `data-blok-open-stage` > `data-blok-open-half` > `data-blok-open-word` (scroll pulls the halves apart on a wide screen),
+  `data-blok-steps` > `data-blok-steps-still` and optional `data-blok-steps-trigger` (pinned wipe; click when a trigger exists),
+  `data-blok-columns` > `data-blok-columns-item` > `data-blok-columns-label`, `data-blok-columns-media`,
+  `data-blok-deck` > `data-blok-deck-card`,
+  `data-blok-lens` > `data-blok-lens-reveal`,
+  `data-blok-flip` > `data-blok-flip-front`, `data-blok-flip-back`,
+  `data-blok-read` > `data-blok-read-line`,
+  `data-blok-tilt` > `data-blok-tilt-card` (a card tilts toward the pointer and eases back on leave),
+  `data-blok-grow` > `data-blok-grow-tile` (the hovered or focused tile widens; below `lg` the tiles stack and nothing animates).
   An attr value starting with `=` binds a prop (`=heading`, `=item.field`). New behaviours go in
   `src/runtime/motion-core.js` and must respect reduced motion.
 

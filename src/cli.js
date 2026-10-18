@@ -19,7 +19,7 @@ for (let i = 0; i < rest.length; i++) {
 
 const HELP = `Blokset
 
-  blokset dev                         Gallery at http://localhost:4400 with live reload
+  blokset dev                         Site at http://localhost:4400, gallery at /gallery
   blokset build [--config <path>]        Build every framework × target into dist/
   blokset sync <styles.json> --out <file> [--variables <file>] [--site <id>]
                                     Save a get_styles export, and optional variables, for Class Sync
@@ -93,7 +93,7 @@ async function main() {
       if (target === "react" || target === "astro") {
         console.log(`\nNext: import "./blokset/index.css" once in your layout${specs.some((s) => s.motion) ? ", and npm i gsap" : ""}.`);
       }
-      if (target === "webflow" && files["footer-code.html"]) console.log(`\nPaste footer-code.html into Webflow → Site settings → Custom code → Footer.`);
+      if (target === "webflow" && files["footer-code.html"]) console.log(`\nPaste footer-code.html into Webflow → Site settings → Custom code → Footer. Delete any older footer snippet first.`);
       break;
     }
 

@@ -121,7 +121,7 @@ function interactions(elements) {
   }
   if (has(elements, "data-blok-accordion")) {
     const multi = is(elements, "data-blok-accordion", "multi");
-    add(`Accordion on ${named(keys(elements, "data-blok-accordion"))}. The first item starts open and the rest start closed. Click or Enter/Space toggles a panel's height and opacity over 0.45s, ease power3.inOut. The icon rotates to 45 degrees when open.${multi ? " Several items may stay open." : " Opening one closes the others."}`);
+    add(`Accordion on ${named(keys(elements, "data-blok-accordion"))}. Items that start expanded stay open. Click or Enter/Space toggles a panel's height and opacity over 0.45s, ease power3.inOut. The icon rotates to 45 degrees when open.${multi ? " Several items may stay open." : " Opening one closes the others."}`);
   }
   if (has(elements, "data-blok-billing")) {
     add(`Billing toggle on ${named(keys(elements, "data-blok-billing"))}. The switch slides over 0.3s, ease power3.out. The inactive label sits at opacity 0.45. Each price slides up and fades out over 0.15s, swaps to the other amount, then slides in from below over 0.25s.`);
@@ -156,6 +156,18 @@ function interactions(elements) {
   if (has(elements, "data-blok-lightbox")) {
     add(`Lightbox on ${named(keys(elements, "data-blok-lightbox"))}. Clicking an item opens the dialog with that image and fades the dialog in over 0.3s. Close from the close control, the backdrop, or Escape.`);
   }
+  if (has(elements, "data-blok-guide")) {
+    add(`Guide line on ${named(keys(elements, "data-blok-guide"))}. The first step starts open. Selecting a tab fades inactive tabs to opacity 0.4, shows that panel, highlights the matching hotspot, and morphs an SVG stroke from the tab node to the hotspot over 0.55s, ease power3.out. Below 992px the stroke is hidden. Reduced motion snaps with no morph.`);
+  }
+  if (has(elements, "data-blok-sheet")) {
+    add(`Sheet modal on ${named(keys(elements, "data-blok-sheet"))}. Clicking a card moves its panel into the dialog and fades the dialog in over 0.35s. Close from the close control, the backdrop, or Escape. Lock page scroll while open.`);
+  }
+  if (has(elements, "data-blok-modes")) {
+    add(`Modes on ${named(keys(elements, "data-blok-modes"))}. Clicking a mode button shows the matching panel and hides the others. The pressed mode is marked.`);
+  }
+  if (has(elements, "data-blok-curve")) {
+    add(`Curve carousel on ${named(keys(elements, "data-blok-curve"))}. Three panels sit in perspective. The active one faces forward; neighbors rotate Y ±28deg and sit farther back. Previous and next advance the stack over 0.55s, ease power3.out.`);
+  }
   if (has(elements, "data-blok-swap")) {
     const reveal = is(elements, "data-blok-swap", "reveal");
     add(
@@ -180,10 +192,31 @@ function interactions(elements) {
     );
   }
   if (has(elements, "data-blok-drops")) {
-    add(`Dropdown on ${named(keys(elements, "data-blok-drops"))}. One panel open at a time. On a fine pointer at 992px and up, hover opens it. Otherwise click, Enter, or Space. The panel fades and moves 6px over about 0.2s. The icon rotates to 45 degrees when open.`);
+    add(`Dropdown on ${named(keys(elements, "data-blok-drops"))}. One panel open at a time at each level. A panel may contain another dropdown, and opening it leaves the parent open. On a fine pointer at 992px and up, hover opens a level. Otherwise click, Enter, or Space, and a nested panel stacks under its trigger. ArrowRight opens the next level. ArrowLeft closes it. Escape closes the deepest open level. The panel fades and moves 6px over about 0.2s. The icon rotates to 45 degrees when open. A mark, if present, fades in.`);
+  }
+  if (has(elements, "data-blok-peek")) {
+    add(`Card peek on ${named(keys(elements, "data-blok-peek"))}. The first card's media starts visible. Hover or focus fades that card's media in over 0.35s and fades the others out. Reduced motion swaps with no fade.`);
   }
   if (has(elements, "data-blok-slider")) {
-    add(`Slider on ${named(keys(elements, "data-blok-slider"))}. Previous and next move the track by one card over 0.55s, ease power3.out. A button at the end of the range sits at opacity 0.35. Update the count if it is there.`);
+    add(`Slider on ${named(keys(elements, "data-blok-slider"))}. Previous and next move the track by one card over 0.55s, ease power3.out. A button at the end of the range sits at opacity 0.35. Update the count if it is there. Dots, if present, jump to that card and grow. Drag past 40px snaps to the next card. Arrow keys work when the section is focused. Cards already passed sit at opacity 0.25.`);
+  }
+  if (has(elements, "data-blok-range")) {
+    add(`Range on ${named(keys(elements, "data-blok-range"))}. Dragging the track moves the fill and thumb, and rewrites the first number in the readout. It also drives a before/after divider in the same section.`);
+  }
+  if (has(elements, "data-blok-step")) {
+    add(`Stepper on ${named(keys(elements, "data-blok-step"))}. Minus and plus change the number by its step, and clamp to its min and max. No tween.`);
+  }
+  if (has(elements, "data-blok-choices")) {
+    add(`Choices on ${named(keys(elements, "data-blok-choices"))}. Clicking an option takes the selected colors. A multi group toggles each option on its own. The check mark, if the label has one, follows the selected state.`);
+  }
+  if (has(elements, "data-blok-panels")) {
+    add(`Panels on ${named(keys(elements, "data-blok-panels"))}. Only one panel is visible. Triggers, previous, and next swap it with no slide. The counter reads the panel number. Reduced motion is the same swap.`);
+  }
+  if (has(elements, "data-blok-plan")) {
+    add(`Plan total on ${named(keys(elements, "data-blok-plan"))}. Changing the tier, a stepper, or an extra recalculates the monthly total immediately.`);
+  }
+  if (has(elements, "data-blok-switches")) {
+    add(`Permission switches on ${named(keys(elements, "data-blok-switch"))}. Click or Enter/Space flips a cell. A changed cell uses the warning border and tint. The status counts changes from the defaults, and Reset restores every cell.`);
   }
   if (has(elements, "data-blok-sides")) {
     add(`Alternate sides on ${named(keys(elements, "data-blok-sides"))} from 992px up. Odd items sit left of center and even items sit right, each about half the width. Below that, stack them full width. No tween.`);

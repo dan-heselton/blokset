@@ -82,6 +82,8 @@ export interface VariantGroup {
   label?: string;
   default: string;
   options: Record<string, VariantOption | null>;
+  /** Set by `themeVariant()`. Theme groups become Figma variable modes, not variants. */
+  palette?: { default: string; options: string[]; map: Record<string, Record<string, string>> };
 }
 
 export interface ComponentSpec {
@@ -117,7 +119,7 @@ export interface BloksetConfig {
   framework: string;
   /** Frameworks to build in addition to the default (for the gallery and dist). */
   frameworks?: string[];
-  targets?: Array<"react" | "astro" | "html" | "vanilla" | "webflow">;
+  targets?: Array<"react" | "astro" | "html" | "vanilla" | "webflow" | "figma">;
   /** Override token values, map code outputs with { value, css }, or bind Webflow with { value, webflow }. */
   tokens?: Record<string, TokenValue>;
   /** Override or replace framework utility values so Webflow pastes don't collide. */
@@ -138,6 +140,10 @@ export interface BloksetConfig {
     /** Variables export. Names in `tokens.*.webflow` also resolve against `snapshot.variables`. */
     variables?: string;
     /** Installed site fonts, keyed by token name. Unmapped font-family values are omitted from pastes. */
+    fonts?: Record<string, string>;
+  };
+  /** Figma font families for type tokens. System stacks such as `ui-monospace` do not exist in Figma. */
+  figma?: {
     fonts?: Record<string, string>;
   };
 }
