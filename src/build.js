@@ -244,11 +244,9 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
       dev,
     }),
     "motion.global.js": motionGlobal(),
-    // Pretty URLs for Cloudflare Pages and Netlify (same syntax).
-    "_redirects": [
-      "/gallery /gallery.html 200",
-      "/pricing /pricing.html 200",
-    ].join("\n") + "\n",
+    // No _redirects: Cloudflare Pages already serves gallery.html at /gallery
+    // (and strips .html). Rewrites here cause ERR_TOO_MANY_REDIRECTS.
+    // Netlify pretty URLs live in netlify.toml; local `blokset dev` uses ROUTES.
   });
   // Specimens + copy payloads are separate files so gallery.html stays under Cloudflare Pages' 25 MiB limit.
   const specimensDir = join(galleryDir, "specimens");
