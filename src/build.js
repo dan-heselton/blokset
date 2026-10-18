@@ -15,7 +15,7 @@ import { componentManifest, variablesManifest } from "./generators/webflow-manif
 import { motionEsm, motionDts, motionGlobal, webflowFooterCode, gsapCdnTags } from "./runtime/build-runtime.js";
 import { renderGallery, specimenDocument } from "./gallery/template.js";
 import { MARKETING_IDS, renderMarketing } from "./site/pages.js";
-import { robotsTxt, sitemapXml } from "./site/seo.js";
+import { robotsTxt, sitemapXml, webManifest } from "./site/seo.js";
 
 const SHARED_INDEX = `@import "./tokens.css";\n@import "./utilities.css";\n@import "./buttons.css";\n`;
 
@@ -248,6 +248,7 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
     "motion.global.js": motionGlobal(),
     "robots.txt": robotsTxt(),
     "sitemap.xml": sitemapXml(),
+    "site.webmanifest": webManifest(),
     // No _redirects: Cloudflare Pages already serves gallery.html at /gallery
     // (and strips .html). Rewrites here cause ERR_TOO_MANY_REDIRECTS.
     // Netlify pretty URLs live in netlify.toml; local `blokset dev` uses ROUTES.
@@ -269,6 +270,10 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
   for (const dir of ["shots", "marks", "art"]) {
     mkdirSync(join(galleryDir, dir), { recursive: true });
     for (const f of readdirSync(join(ROOT, "src/site", dir))) copyFileSync(join(ROOT, "src/site", dir, f), join(galleryDir, dir, f));
+  }
+  // Brand icons land at the publish root so /favicon.ico and /apple-touch-icon.png resolve.
+  for (const f of readdirSync(join(ROOT, "src/site/brand"))) {
+    copyFileSync(join(ROOT, "src/site/brand", f), join(galleryDir, f));
   }
   writeFiles(join(out, "figma"), {
     "index.json": JSON.stringify(figmaCatalog(specs, config, frameworks), null, 2),

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Blokset">
+  <rect width="32" height="32" rx="8" fill="#141414"/>
+  <rect x="8" y="8" width="16" height="16" rx="3" fill="#ff5b2e"/>
+</svg>

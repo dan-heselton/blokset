@@ -23,7 +23,12 @@ export function siteHead({ title, description, path, image = OG_IMAGE, type = "w
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
 <meta name="robots" content="index,follow">
+<meta name="theme-color" content="#141414">
 <link rel="canonical" href="${esc(url)}">
+<link rel="icon" href="${SITE_URL}/favicon.ico" sizes="any">
+<link rel="icon" href="${SITE_URL}/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="${SITE_URL}/apple-touch-icon.png">
+<link rel="manifest" href="${SITE_URL}/site.webmanifest">
 <meta property="og:type" content="${esc(type)}">
 <meta property="og:site_name" content="Blokset">
 <meta property="og:title" content="${esc(title)}">
@@ -34,6 +39,23 @@ export function siteHead({ title, description, path, image = OG_IMAGE, type = "w
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
 <meta name="twitter:image" content="${esc(img)}">`;
+}
+
+export function webManifest() {
+  return `${JSON.stringify({
+    name: "Blokset",
+    short_name: "Blokset",
+    description: "Webflow components that keep your classes.",
+    start_url: "/",
+    display: "standalone",
+    background_color: "#fbfaf7",
+    theme_color: "#141414",
+    icons: [
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { src: "/favicon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+    ],
+  }, null, 2)}\n`;
 }
 
 /** @param {Record<string, unknown> | Record<string, unknown>[]} data */
