@@ -167,7 +167,9 @@ test("catalog can be searched and filtered, and specimens do not run motion", ()
   assert.equal(releaseOf.get("nav-07"), "8");
   assert.equal(releaseOf.get("hero-57"), "9");
   assert.equal(releaseOf.get("hero-63"), "10");
-  assert.equal(releases.length, 10);
+  assert.equal(releases.length, 11);
+  assert.equal(releaseOf.get("bento-25"), "11");
+  assert.equal(releaseOf.get("work-13"), "11");
   for (const spec of specs) {
     const card = catalog.match(new RegExp(`<article class="g-card" data-id="${spec.id}"[^>]*>`));
     assert.ok(card, spec.id);
