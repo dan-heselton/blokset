@@ -21,7 +21,7 @@ test("site head includes canonical, social tags, and icons", () => {
 });
 
 test("robots and sitemap cover the marketing routes", () => {
-  assert.deepEqual(SITEMAP_PATHS, ["/", "/gallery", "/pricing", "/compare"]);
+  assert.deepEqual(SITEMAP_PATHS, ["/", "/login", "/gallery", "/pricing", "/compare"]);
   assert.match(robotsTxt(), /Sitemap: https:\/\/blokset\.dev\/sitemap\.xml/);
   const map = sitemapXml();
   for (const path of SITEMAP_PATHS) {

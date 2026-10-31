@@ -7,6 +7,7 @@ import { animationPrompt } from "../generators/motion-prompt.js";
 import { BUTTON_ROLES } from "./button-classes.js";
 import { assignReleases } from "./releases.js";
 import { FREE_IDS } from "../site/free.js";
+import { posthogSnippet } from "../site/analytics.js";
 import { gallerySeo, jsonLd, siteHead, SITE_URL } from "../site/seo.js";
 
 const buttonRuntime = readFileSync(new URL("./button-classes.js", import.meta.url), "utf8").replace(/^export /gm, "");
@@ -444,6 +445,7 @@ ${jsonLd({
   }
 </style>
 <link rel="stylesheet" href="./preview.css">
+${posthogSnippet()}
 </head>
 <body>
 <a class="g-skip" href="#g-grid">Skip to components</a>

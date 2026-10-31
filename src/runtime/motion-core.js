@@ -412,7 +412,7 @@ function createBloksetMotion(gsap, ScrollTrigger) {
     el.setAttribute("aria-label", text);
     el.innerHTML = text
       .split(/\s+/)
-      .map((w) => `<span aria-hidden="true" style="display:inline-block;overflow:hidden;vertical-align:top;padding-bottom:0.08em;margin-bottom:-0.08em"><span style="display:inline-block">${esc(w)}</span></span>`)
+      .map((w) => `<span aria-hidden="true" style="display:inline-block;overflow:hidden;vertical-align:bottom;padding-bottom:0.22em;margin-bottom:-0.22em"><span style="display:inline-block">${esc(w)}</span></span>`)
       .join(" ");
     if (reduced()) return;
     const inner = el.querySelectorAll("span > span");

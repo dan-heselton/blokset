@@ -2,13 +2,32 @@
 // edited specs are re-imported cleanly, then connected browsers reload over server-sent events.
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { watch, existsSync } from "node:fs";
+import { watch, existsSync, readFileSync } from "node:fs";
 import { join, extname, normalize } from "node:path";
 import { spawn } from "node:child_process";
 import { ROOT } from "./core/config.js";
+import { mcpResponse } from "../workers/mcp.js";
 
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" };
-const ROUTES = { "/": "/index.html", "/pricing": "/pricing.html", "/gallery": "/gallery.html", "/compare": "/compare.html" };
+const ROUTES = {
+  "/": "/index.html",
+  "/pricing": "/pricing.html",
+  "/gallery": "/gallery.html",
+  "/compare": "/compare.html",
+  "/login": "/login.html",
+  "/admin": "/admin.html",
+  "/mocks": "/mocks/index.html",
+};
+
+function mcpKey() {
+  if (process.env.MCP_KEY) return process.env.MCP_KEY;
+  try {
+    const line = readFileSync(join(ROOT, ".dev.vars"), "utf8").split("\n").find((entry) => entry.startsWith("MCP_KEY="));
+    return line ? line.slice("MCP_KEY=".length).trim() : "";
+  } catch {
+    return "";
+  }
+}
 
 function figmaPath(url) {
   const rest = url.slice("/figma/".length);
@@ -53,16 +72,46 @@ export async function startDev({ port }) {
       res.writeHead(204, headers).end();
       return;
     }
-    if (req.method === "POST") {
+    if (req.method === "POST" && url === "/mcp") {
       const chunks = [];
       for await (const chunk of req) chunks.push(chunk);
-      const params = new URLSearchParams(Buffer.concat(chunks).toString());
-      if (params.get("form-name") === "library" && params.get("email")) {
+      const request = new Request(`http://localhost${url}`, {
+        method: "POST",
+        headers: req.headers,
+        body: Buffer.concat(chunks),
+      });
+      const response = await mcpResponse(request, {
+        MCP_KEY: mcpKey(),
+        ASSETS: {
+          async fetch(assetRequest) {
+            const name = new URL(assetRequest.url).pathname.replace(/^\//, "");
+            const file = join(root, name);
+            if (!file.startsWith(root)) return new Response("missing", { status: 404 });
+            try {
+              return new Response(await readFile(file), { headers: { "content-type": "application/json" } });
+            } catch {
+              return new Response("missing", { status: 404 });
+            }
+          },
+        },
+      });
+      const responseHeaders = { ...headers, "content-type": response.headers.get("content-type") || "application/json" };
+      res.writeHead(response.status, responseHeaders).end(Buffer.from(await response.arrayBuffer()));
+      return;
+    }
+    if (req.method === "POST" && (url === "/api/waitlist" || url === "/")) {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const raw = Buffer.concat(chunks).toString();
+      const params = raw.trim().startsWith("{")
+        ? new URLSearchParams(Object.entries(JSON.parse(raw)).map(([k, v]) => [k, String(v ?? "")]))
+        : new URLSearchParams(raw);
+      if (params.get("email")) {
         console.log(`library list: ${params.get("plan") || "Solo"} <${params.get("email")}>`);
-        res.writeHead(200, { ...headers, "content-type": "text/plain; charset=utf-8" }).end("ok");
+        res.writeHead(200, { ...headers, "content-type": "application/json; charset=utf-8" }).end(JSON.stringify({ ok: true }));
         return;
       }
-      res.writeHead(400, headers).end("Bad request");
+      res.writeHead(400, headers).end(JSON.stringify({ error: "Bad request" }));
       return;
     }
     if (url === "/__reload") {
@@ -95,7 +144,7 @@ export async function startDev({ port }) {
     }
     res.writeHead(200, { ...headers, "content-type": TYPES[extname(path)] || "application/octet-stream" });
     res.end(body);
-  }).listen(port, () => console.log(`\n  Blokset → http://localhost:${port}\n  Gallery → http://localhost:${port}/gallery\n  Watching components/, frameworks/, src/, blokset.config.js\n`));
+  }).listen(port, () => console.log(`\n  Blokset → http://localhost:${port}\n  Gallery → http://localhost:${port}/gallery\n  Mocks   → http://localhost:${port}/mocks\n  Watching components/, frameworks/, src/, blokset.config.js\n`));
 
   let timer;
   let building = false;
@@ -111,7 +160,9 @@ export async function startDev({ port }) {
   };
   for (const dir of ["components", "frameworks", "src"]) {
     watch(join(ROOT, dir), { recursive: true }, (_event, file) => {
-      if (file && /\.(png|jpe?g|webp|gif)$/i.test(String(file))) return;
+      const name = String(file || "");
+      // Skip generated/demo bitmaps, but rebuild when marketing shots/art/marks change.
+      if (/\.(png|jpe?g|webp|gif)$/i.test(name) && !/(^|\/)site\/(shots|art|marks|brand)\//.test(name.replace(/\\/g, "/"))) return;
       trigger();
     });
   }

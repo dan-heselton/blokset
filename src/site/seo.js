@@ -66,8 +66,8 @@ export function jsonLd(data) {
 /** @param {number} sectionCount */
 export function homeSeo(sectionCount) {
   return {
-    title: "Blokset — Webflow components that keep your classes",
-    description: `Paste Webflow components into Client-First, BEM, or Flowkit without renaming classes. Built for teams comparing Relume, Flowbase, BRIX, and other Webflow component libraries. ${sectionCount} sections in Webflow, Figma, and code.`,
+    title: "Blokset — Your next section, in your class system",
+    description: `Blokset is a section library for the site you’re already building. ${sectionCount} sections in Webflow, Figma, or code on Client-First, BEM, or Flowkit. Join the waitlist — access is invite-only.`,
     path: "/",
   };
 }
@@ -98,7 +98,7 @@ export function compareSeo() {
 }
 
 /** Sitemap paths for the marketing site. */
-export const SITEMAP_PATHS = ["/", "/gallery", "/pricing", "/compare"];
+export const SITEMAP_PATHS = ["/", "/login", "/gallery", "/pricing", "/compare"];
 
 export function robotsTxt() {
   return `User-agent: *

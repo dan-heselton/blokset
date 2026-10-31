@@ -3,6 +3,7 @@
 import { resolveComponent } from "../core/resolve.js";
 import { generateHtml } from "../generators/code.js";
 import { escapeHtml } from "../generators/markup.js";
+import { posthogSnippet } from "./analytics.js";
 import { FREE_IDS } from "./free.js";
 import { SHOT_IDS } from "./shots.js";
 import {
@@ -13,14 +14,16 @@ import {
   pricingSeo,
   siteHead,
 } from "./seo.js";
+import { MOCK_IDS, MOCKS, getMock } from "./mocks.js";
 
-const HOME_IDS = ["hero-14", "gallery-05", "logos-02", "features-46", "process-03", "cta-12", "footer-04"];
-const OUTPUTS = [["webflow", "Webflow"], ["figma", "Figma"], ["react", "React"], ["astro", "Astro"], ["html", "HTML"], ["javascript", "Vanilla JS"]];
+// Public waitlist home: trail hero, signup, product-use proof, bento, process, footer.
+const HOME_IDS = ["hero-14", "bento-02", "process-03", "footer-04"];
 const PRICING_IDS = ["pricing-06", "logos-05", "faq-04", "footer-04"];
-const COMPARE_IDS = ["hero-14", "features-46", "faq-04", "cta-12", "footer-04"];
+const COMPARE_IDS = ["hero-14", "faq-04", "cta-12", "footer-04"];
+const LOGIN_IDS = ["footer-04"];
 
 /** Specs whose CSS the marketing pages need. */
-export const MARKETING_IDS = [...new Set([...HOME_IDS, ...PRICING_IDS, ...COMPARE_IDS])];
+export const MARKETING_IDS = [...new Set([...HOME_IDS, ...PRICING_IDS, ...COMPARE_IDS, ...LOGIN_IDS, ...MOCK_IDS])];
 
 const esc = escapeHtml;
 
@@ -37,28 +40,35 @@ function shot(specs, id, frame) {
   return { src: `./shots/${id}-${frame}.jpg`, alt: `Screenshot of the ${spec.name} section` };
 }
 
-/** A drawing from src/site/art/. */
-const art = (name, alt) => ({ src: `./art/${name}.svg`, alt });
+/** Product-in-use photography from src/site/media/ (Webflow / Figma crops). */
+function media(file, alt) {
+  return { src: `./media/${file}?v=5`, alt };
+}
 
-const FONTS = "https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Newsreader:ital,opsz,wght@0,6..72,500;1,6..72,560&display=swap";
+// Marketing type stack: Inter Tight (display) + Inter (body) + JetBrains Mono (labels).
+// No Newsreader — serif stays in the catalog, not on waitlist/pricing/compare chrome.
+const FONTS = "https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap";
 
 const CHROME = `
   :root {
     color-scheme: light;
     --g-bg: #fbfaf7; --g-panel: #ffffff; --g-fg: #141414; --g-muted: #5c5a54; --g-line: #e7e3da;
     --g-accent: #141414; --g-accent-fg: #ffffff; --g-chip: #f1eee6; --g-mark: #ff5b2e; --g-thumb: #cfcabe;
+    --g-font-display: "Inter Tight", system-ui, sans-serif;
+    --g-font-body: Inter, system-ui, sans-serif;
+    --g-font-mono: "JetBrains Mono", ui-monospace, monospace;
   }
   *, *::before, *::after { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html { scroll-behavior: smooth; scrollbar-color: var(--g-thumb) transparent; }
-  body { margin: 0; background: var(--g-bg); color: var(--g-fg); font-family: Inter, system-ui, sans-serif; font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  body { margin: 0; background: var(--g-bg); color: var(--g-fg); font-family: var(--g-font-body); font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
   ::selection { background: var(--g-fg); color: var(--g-bg); }
   img { max-width: 100%; }
   .g-skip { position: absolute; left: 12px; top: -40px; z-index: 300; background: var(--g-fg); color: var(--g-bg); padding: 8px 12px; border-radius: 8px; font-weight: 600; text-decoration: none; }
   .g-skip:focus { top: 12px; }
   .g-sticky { position: sticky; top: 0; z-index: 100; background: var(--g-bg); border-bottom: 1px solid var(--g-line); }
   .g-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 20px; }
-  .g-logo { display: flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; font-family: "Inter Tight", sans-serif; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
+  .g-logo { display: flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; font-family: var(--g-font-display); font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
   .g-logo:focus-visible, .g-site-nav a:focus-visible, .g-start:focus-visible, .g-entry button:focus-visible {
     outline: 2px solid var(--g-fg); outline-offset: 3px;
   }
@@ -68,12 +78,12 @@ const CHROME = `
   .g-site-nav a { color: var(--g-fg); text-decoration: none; font-size: 14px; font-weight: 500; }
   .g-site-nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 4px; }
   .g-site-nav a:hover { text-decoration: underline; text-underline-offset: 4px; }
-  .g-start { display: inline-flex; align-items: center; background: var(--g-accent); color: var(--g-accent-fg); border: 1px solid var(--g-accent); border-radius: 8px; padding: 8px 12px; font: 600 13px/1 Inter, system-ui, sans-serif; text-decoration: none; }
+  .g-start { display: inline-flex; align-items: center; background: var(--g-accent); color: var(--g-accent-fg); border: 1px solid var(--g-accent); border-radius: 8px; padding: 8px 12px; font: 600 13px/1 var(--g-font-body); text-decoration: none; }
   .g-start:hover { opacity: 0.9; }
   .g-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .g-library { scroll-margin-top: 4.5rem; padding: 6rem 20px; background: var(--g-mark); color: var(--g-fg); text-align: center; }
   .g-library-inner { max-width: 40rem; margin: 0 auto; }
-  .g-library h2 { margin: 0 0 1rem; font-family: "Inter Tight", sans-serif; font-size: clamp(2.75rem, 8vw, 5.5rem); font-weight: 600; letter-spacing: -0.045em; line-height: 0.92; }
+  .g-library h2 { margin: 0 0 1rem; font-family: var(--g-font-display); font-size: clamp(2.75rem, 8vw, 5.5rem); font-weight: 600; letter-spacing: -0.045em; line-height: 0.92; }
   .g-library p { margin: 0 auto 2.25rem; max-width: 30rem; font-size: 1.0625rem; line-height: 1.55; }
   .g-library form { display: flex; flex-direction: column; align-items: center; gap: 14px; }
   .g-plans { display: flex; justify-content: center; gap: 8px; margin: 0; padding: 0; border: 0; }
@@ -84,21 +94,96 @@ const CHROME = `
   .g-plan:has(input:focus-visible) { outline: 2px solid var(--g-fg); outline-offset: 3px; }
   .g-entry { display: flex; flex-wrap: wrap; gap: 6px; width: min(100%, 30rem); padding: 6px; background: var(--g-bg); border-radius: 14px; box-shadow: 0 1px 0 rgba(20, 20, 20, 0.12), 0 12px 32px -12px rgba(20, 20, 20, 0.35); }
   .g-entry:focus-within { outline: 2px solid var(--g-fg); outline-offset: 3px; }
-  .g-entry input { flex: 1 1 12rem; min-width: 0; height: 48px; padding: 0 12px; border: 0; background: transparent; color: var(--g-fg); font: 400 16px/1 Inter, system-ui, sans-serif; caret-color: var(--g-fg); }
+  .g-entry input { flex: 1 1 12rem; min-width: 0; height: 48px; padding: 0 12px; border: 0; background: transparent; color: var(--g-fg); font: 400 16px/1 var(--g-font-body); caret-color: var(--g-fg); }
   .g-entry input:focus { outline: none; }
   .g-entry input::placeholder { color: var(--g-muted); }
-  .g-entry button { flex: 1 0 auto; height: 48px; padding: 0 22px; border: 0; border-radius: 10px; background: var(--g-fg); color: var(--g-bg); font: 600 15px/1 Inter, system-ui, sans-serif; cursor: pointer; }
+  .g-entry button { flex: 1 0 auto; height: 48px; padding: 0 22px; border: 0; border-radius: 10px; background: var(--g-fg); color: var(--g-bg); font: 600 15px/1 var(--g-font-body); cursor: pointer; }
   .g-entry button:hover { opacity: 0.88; }
   .g-entry button:disabled { opacity: 0.5; cursor: progress; }
   .g-status { min-height: 1.5em; margin: 18px 0 0; font-size: 16px; font-weight: 600; }
+  .g-mocks { padding: 4rem 20px 5rem; max-width: 52rem; margin: 0 auto; }
+  .g-mocks h1 { margin: 0 0 0.75rem; font-family: var(--g-font-display); font-size: clamp(2rem, 5vw, 3rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; }
+  .g-mocks > p { margin: 0 0 2rem; color: var(--g-muted); font-size: 1.0625rem; line-height: 1.55; max-width: 36rem; }
+  .g-mock-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .g-mock-list a { display: block; padding: 1.1rem 1.25rem; border: 1px solid var(--g-line); border-radius: 14px; background: var(--g-panel); color: inherit; text-decoration: none; }
+  .g-mock-list a:hover { border-color: var(--g-fg); }
+  .g-mock-list strong { display: block; font-family: var(--g-font-display); font-size: 1.0625rem; letter-spacing: -0.02em; }
+  .g-mock-list span { display: block; margin-top: 0.35rem; color: var(--g-muted); font-size: 0.9375rem; line-height: 1.45; }
+  .g-login { padding: 5rem 20px 6rem; max-width: 24rem; margin: 0 auto; }
+  .g-login h1 { margin: 0 0 0.75rem; font-family: var(--g-font-display); font-size: clamp(1.75rem, 4vw, 2.25rem); font-weight: 600; letter-spacing: -0.03em; }
+  .g-login > p { margin: 0 0 1.75rem; color: var(--g-muted); font-size: 1rem; line-height: 1.55; }
+  .g-login form { display: flex; flex-direction: column; gap: 12px; }
+  .g-login label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; }
+  .g-login input { height: 48px; padding: 0 12px; border: 1px solid var(--g-line); border-radius: 10px; background: var(--g-panel); color: var(--g-fg); font: 400 16px/1 var(--g-font-body); }
+  .g-login input:focus { outline: 2px solid var(--g-fg); outline-offset: 2px; }
+  .g-login button { height: 48px; border: 0; border-radius: 10px; background: var(--g-fg); color: var(--g-bg); font: 600 15px/1 var(--g-font-body); cursor: pointer; }
+  .g-login button:disabled { opacity: 0.5; cursor: progress; }
+  .g-login .g-status { margin-top: 0.5rem; }
+  .g-login-invite { display: none; flex-direction: column; gap: 12px; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--g-line); }
+  .g-login-invite.is-open { display: flex; }
+  .g-admin { padding: 3.5rem 20px 5rem; max-width: 52rem; margin: 0 auto; }
+  .g-admin h1 { margin: 0 0 0.35rem; font-family: var(--g-font-display); font-size: clamp(1.75rem, 4vw, 2.25rem); font-weight: 600; letter-spacing: -0.03em; }
+  .g-admin .g-admin-lead { margin: 0 0 1.75rem; color: var(--g-muted); font-size: 1rem; line-height: 1.55; }
+  .g-admin-add { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 1.75rem; padding: 14px; border: 1px solid var(--g-line); border-radius: 14px; background: var(--g-panel); }
+  .g-admin-add input { flex: 1 1 14rem; min-width: 0; height: 44px; padding: 0 12px; border: 1px solid var(--g-line); border-radius: 10px; background: var(--g-bg); color: var(--g-fg); font: 400 15px/1 var(--g-font-body); }
+  .g-admin-add button, .g-admin-row button { height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: var(--g-fg); color: var(--g-bg); font: 600 14px/1 var(--g-font-body); cursor: pointer; }
+  .g-admin-add button:disabled, .g-admin-row button:disabled { opacity: 0.5; cursor: progress; }
+  .g-admin-row button.g-admin-secondary { background: var(--g-chip); color: var(--g-fg); border: 1px solid var(--g-line); }
+  .g-admin-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .g-admin-row { display: grid; gap: 10px 14px; padding: 1rem 1.1rem; border: 1px solid var(--g-line); border-radius: 14px; background: var(--g-panel); }
+  @media (min-width: 640px) {
+    .g-admin-row { grid-template-columns: 1fr auto; align-items: center; }
+  }
+  .g-admin-meta { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: baseline; }
+  .g-admin-meta strong { font-size: 0.975rem; letter-spacing: -0.01em; }
+  .g-admin-chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px; background: var(--g-chip); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .g-admin-chip[data-status="waitlist"] { background: #fff1e8; color: #9a3412; }
+  .g-admin-chip[data-status="invited"] { background: #eef2ff; color: #3730a3; }
+  .g-admin-chip[data-status="active"] { background: #ecfdf3; color: #166534; }
+  .g-admin-chip[data-admin] { background: var(--g-fg); color: var(--g-bg); }
+  .g-admin-sub { margin: 0.35rem 0 0; color: var(--g-muted); font-size: 0.875rem; line-height: 1.4; word-break: break-all; }
+  .g-admin-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .g-admin-empty { margin: 0; color: var(--g-muted); }
+  /* Product screenshots — shown as screenshots, never stuffed into photo slots with cover. */
+  .g-proof { padding: 4.5rem 20px 5rem; background: var(--g-bg); border-bottom: 1px solid var(--g-line); }
+  .g-proof-inner { max-width: 64rem; margin: 0 auto; }
+  .g-proof-head { max-width: 36rem; margin: 0 0 2.5rem; }
+  .g-proof-head h2 { margin: 0 0 0.75rem; font-family: var(--g-font-display); font-size: clamp(2rem, 5vw, 3rem); font-weight: 600; letter-spacing: -0.04em; line-height: 1.05; }
+  .g-proof-head p { margin: 0; color: var(--g-muted); font-size: 1.0625rem; line-height: 1.55; }
+  .g-proof-grid { display: grid; gap: 1.75rem; }
+  @media (min-width: 800px) {
+    .g-proof-grid { grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
+    .g-proof-card:nth-child(2) { margin-top: 3.5rem; }
+  }
+  .g-proof-card { margin: 0; padding: 0; border: 1px solid var(--g-line); border-radius: 16px; background: var(--g-panel); overflow: hidden; }
+  .g-proof-card figcaption { padding: 1rem 1.15rem 1.15rem; }
+  .g-proof-card figcaption strong { display: block; font-family: var(--g-font-display); font-size: 1.125rem; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 0.35rem; }
+  .g-proof-card figcaption span { display: block; color: var(--g-muted); font-size: 0.9375rem; line-height: 1.45; }
+  .g-proof-shot { display: block; width: 100%; height: auto; vertical-align: top; background: #ece9e1; }
+  .g-proof-head, .g-proof-card { opacity: 0; transform: translate3d(0, 2.25rem, 0); }
+  .g-proof.is-in .g-proof-head, .g-proof.is-in .g-proof-card { opacity: 1; transform: none; transition: opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1), transform 0.75s cubic-bezier(0.22, 1, 0.36, 1); }
+  .g-proof.is-in .g-proof-card:nth-child(1) { transition-delay: 0.1s; }
+  .g-proof.is-in .g-proof-card:nth-child(2) { transition-delay: 0.24s; }
+  .g-pitch { padding: 4.5rem 20px; background: var(--g-bg); border-bottom: 1px solid var(--g-line); }
+  .g-pitch-inner { max-width: 40rem; margin: 0 auto; }
+  .g-pitch h2 { margin: 0 0 0.75rem; font-family: var(--g-font-display); font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
+  .g-pitch p { margin: 0 0 1rem; color: var(--g-muted); font-size: 1.0625rem; line-height: 1.55; }
+  .g-pitch p:last-child { margin-bottom: 0; }
+  .g-pitch-support { color: var(--g-fg) !important; font-weight: 500; }
+  .g-close { padding: 5rem 20px; background: var(--g-mark); color: var(--g-fg); text-align: center; }
+  .g-close-inner { max-width: 36rem; margin: 0 auto; }
+  .g-close h2 { margin: 0 0 0.75rem; font-family: var(--g-font-display); font-size: clamp(1.75rem, 5vw, 2.75rem); font-weight: 600; letter-spacing: -0.035em; line-height: 1.05; }
+  .g-close p { margin: 0 auto 1.75rem; max-width: 28rem; font-size: 1.0625rem; line-height: 1.55; }
+  .g-close-cta { display: inline-flex; align-items: center; height: 48px; padding: 0 22px; border-radius: 10px; background: var(--g-fg); color: var(--g-bg); font: 600 15px/1 var(--g-font-body); text-decoration: none; }
+  .g-close-cta:hover { opacity: 0.9; }
   .g-compare { padding: 4rem 20px 5rem; background: var(--g-bg); border-bottom: 1px solid var(--g-line); }
   .g-compare-inner { max-width: 68rem; margin: 0 auto; }
-  .g-compare h2 { margin: 0 0 0.75rem; font-family: "Inter Tight", sans-serif; font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
+  .g-compare h2 { margin: 0 0 0.75rem; font-family: var(--g-font-display); font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
   .g-compare > .g-compare-inner > p { margin: 0 0 2rem; max-width: 40rem; color: var(--g-muted); font-size: 1.0625rem; line-height: 1.55; }
   .g-compare-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--g-line); border-radius: 14px; background: var(--g-panel); }
   .g-compare-table { width: 100%; min-width: 44rem; border-collapse: collapse; font-size: 14px; }
   .g-compare-table th, .g-compare-table td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--g-line); vertical-align: top; }
-  .g-compare-table th { font-family: "Inter Tight", sans-serif; font-weight: 600; font-size: 13px; letter-spacing: -0.01em; background: var(--g-chip); }
+  .g-compare-table th { font-family: var(--g-font-display); font-weight: 600; font-size: 13px; letter-spacing: -0.01em; background: var(--g-chip); }
   .g-compare-table th:first-child, .g-compare-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--g-panel); font-weight: 600; min-width: 9.5rem; }
   .g-compare-table th:first-child { background: var(--g-chip); }
   .g-compare-table th[data-blokset], .g-compare-table td[data-blokset] { background: #fff7f2; }
@@ -118,38 +203,64 @@ const CHROME = `
     .g-site-nav { grid-area: nav; margin-right: 0; gap: 14px; }
   }
   @media (min-width: 800px) {
-    .g-top, .g-library, .g-compare { padding-left: 28px; padding-right: 28px; }
+    .g-top, .g-library, .g-compare, .g-proof, .g-pitch, .g-close { padding-left: 28px; padding-right: 28px; }
   }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
+    .g-proof-head, .g-proof-card { opacity: 1 !important; transform: none !important; }
   }
 `;
 
-function chrome(current) {
+/** Public waitlist chrome has no links into gated pages. App chrome is for signed-in routes. */
+function chrome(current, { app = false } = {}) {
   const link = (href, id, label) =>
     `<a href="${href}"${current === id ? ` aria-current="page"` : ""}>${label}</a>`;
-  return `<a class="g-skip" href="#content">Skip to content</a>
-<div class="g-sticky">
-<header class="g-top">
-  <a class="g-logo" href="/"><span class="g-logo-mark" aria-hidden="true"></span>Blokset</a>
-  <nav class="g-site-nav" aria-label="Site">
+  const nav = app
+    ? `<nav class="g-site-nav" aria-label="Site">
     ${link("/", "home", "Home")}
     ${link("/gallery", "gallery", "Gallery")}
     ${link("/compare", "compare", "Compare")}
     ${link("/pricing", "pricing", "Pricing")}
-  </nav>
-  <a class="g-start" href="/gallery">Start free</a>
+  </nav>`
+    : "";
+  return `<a class="g-skip" href="#content">Skip to content</a>
+<div class="g-sticky">
+<header class="g-top">
+  <a class="g-logo" href="/"><span class="g-logo-mark" aria-hidden="true"></span>Blokset</a>
+  ${nav}
+  <a class="g-start" href="/login">Sign in</a>
 </header>
 </div>`;
 }
 
+/** Minimal footer for the public waitlist. No gated links, no extra CTAs. */
+const waitlistFooter = {
+  showLogo: false,
+  showButtons: false,
+  tagline: "Your next section, in your class system and your format.",
+  buttons: [],
+  showColumns: false,
+  column1Title: "",
+  column1Links: [],
+  column2Title: "",
+  column2Links: [],
+  column3Title: "",
+  column3Links: [],
+  showWordmark: true,
+  wordmark: "Blokset",
+  showLegal: true,
+  copyright: "© 2026 Blokset",
+  legalLinks: [],
+};
+
+/** Footer for gated pages after sign-in. */
 const footerValues = {
   showLogo: false,
   showButtons: true,
   tagline: "One spec. The stack the project already uses.",
   buttons: [
-    { title: "Start free", href: "/gallery", variant: "primary" },
-    { title: "Join the list", href: "/pricing#library", variant: "secondary-alt" },
+    { title: "Open gallery", href: "/gallery", variant: "primary" },
+    { title: "Pricing", href: "/pricing", variant: "secondary-alt" },
   ],
   showColumns: true,
   column1Title: "Product",
@@ -157,7 +268,6 @@ const footerValues = {
     { label: "Gallery", href: "/gallery" },
     { label: "Compare", href: "/compare" },
     { label: "Pricing", href: "/pricing" },
-    { label: "Free sections", href: "/gallery" },
   ],
   column2Title: "Class systems",
   column2Links: [
@@ -178,12 +288,132 @@ const footerValues = {
   legalLinks: [],
 };
 
+const FORM_SCRIPT = `<script>
+(function () {
+  var form = document.querySelector("form[name=library]");
+  if (!form) return;
+  var status = document.getElementById("library-status");
+  var button = form.querySelector("button[type=submit]");
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    button.disabled = true;
+    status.textContent = "Sending…";
+    var body = new URLSearchParams(new FormData(form)).toString();
+    fetch("/api/waitlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body
+    }).then(function (res) {
+      if (!res.ok) throw new Error(String(res.status));
+      form.hidden = true;
+      status.textContent = "You're on the waitlist. We'll email you when an invite is available.";
+    }).catch(function () {
+      button.disabled = false;
+      status.textContent = "That didn't go through. Check the address and try again.";
+    });
+  });
+})();
+</script>`;
+
+/** Email-only waitlist form for the public launch page and mocks. */
+function waitlistForm() {
+  return `<section class="g-library" id="library" aria-labelledby="library-title">
+  <div class="g-library-inner">
+    <h2 id="library-title">Join the waitlist</h2>
+    <p>Leave an email for sections in your class system and your format. Currently invite-only. We'll email you when access is available.</p>
+    <form name="library" method="POST" action="/api/waitlist">
+      <input type="hidden" name="form-name" value="library">
+      <p hidden>
+        <label>Leave this empty <input name="bot-field" tabindex="-1" autocomplete="off"></label>
+      </p>
+      <div class="g-entry">
+        <label class="g-sr" for="library-email">Email</label>
+        <input id="library-email" type="email" name="email" required autocomplete="email" inputmode="email" placeholder="you@studio.com">
+        <button type="submit">Join the waitlist</button>
+      </div>
+    </form>
+    <p class="g-status" id="library-status" role="status"></p>
+  </div>
+</section>
+${FORM_SCRIPT}`;
+}
+
+/** Screenshots shown as screenshots — natural size, no cover crop into photo slots. */
+function proofSection() {
+  const webflow = media("webflow-paste.jpg", "Blokset Features / Bento section pasted in Webflow Designer");
+  const figma = media("figma-spec.jpg", "Blokset sections laid out in Figma");
+  return `<section class="g-proof" aria-labelledby="proof-title">
+  <div class="g-proof-inner">
+    <div class="g-proof-head">
+      <h2 id="proof-title">Paste into Webflow. Open in Figma.</h2>
+      <p>Same section in the tool you’re already working in. Your classes. Your format.</p>
+    </div>
+    <div class="g-proof-grid">
+      <figure class="g-proof-card">
+        <img class="g-proof-shot" src="${esc(webflow.src)}" alt="${esc(webflow.alt)}" width="1024" height="941" loading="lazy" decoding="async">
+        <figcaption>
+          <strong>In Webflow</strong>
+          <span>Paste lands on the class names the project already has.</span>
+        </figcaption>
+      </figure>
+      <figure class="g-proof-card">
+        <img class="g-proof-shot" src="${esc(figma.src)}" alt="${esc(figma.alt)}" width="1022" height="1024" loading="lazy" decoding="async">
+        <figcaption>
+          <strong>In Figma</strong>
+          <span>The same design from one shared spec — open the counterpart without rebuilding.</span>
+        </figcaption>
+      </figure>
+    </div>
+  </div>
+</section>`;
+}
+
+const PROOF_SCRIPT = `<script>
+(function () {
+  var section = document.querySelector(".g-proof");
+  if (!section) return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) {
+    section.classList.add("is-in");
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (!entry.isIntersecting) return;
+      section.classList.add("is-in");
+      io.disconnect();
+    });
+  }, { threshold: 0.2, rootMargin: "0px 0px -6% 0px" });
+  io.observe(section);
+})();
+</script>`;
+
+function competitivePitch() {
+  return `<section class="g-pitch" aria-labelledby="pitch-title">
+  <div class="g-pitch-inner">
+    <h2 id="pitch-title">Already have a component library?</h2>
+    <p>Your next project might use a different class system. Your next client might need a different stack. Blokset gives you the same section across those choices.</p>
+    <p class="g-pitch-support">Client-First for one build. BEM for another. Webflow today. Astro on the next project.</p>
+  </div>
+</section>`;
+}
+
+function closingCta() {
+  return `<section class="g-close" aria-labelledby="close-title">
+  <div class="g-close-inner">
+    <h2 id="close-title">Keep your workflow. Find your next section.</h2>
+    <p>Join the waitlist for sections in your classes and your format.</p>
+    <a class="g-close-cta" href="#library">Join the waitlist</a>
+  </div>
+</section>`;
+}
+
+/** Pricing page form keeps plan radios. */
 function libraryForm() {
   return `<section class="g-library" id="library" aria-labelledby="library-title">
   <div class="g-library-inner">
     <h2 id="library-title">Get the full library</h2>
     <p>Billing is not open yet. Join the list and the full library opens for you when it is. Solo is also $192 a year.</p>
-    <form name="library" method="POST" action="/pricing#library" data-netlify="true" netlify-honeypot="bot-field">
+    <form name="library" method="POST" action="/api/waitlist">
       <input type="hidden" name="form-name" value="library">
       <p hidden>
         <label>Leave this empty <input name="bot-field" tabindex="-1" autocomplete="off"></label>
@@ -194,112 +424,62 @@ function libraryForm() {
         <label class="g-plan"><input type="radio" name="plan" value="Studio"><strong>Studio</strong> $49 a month</label>
       </fieldset>
       <div class="g-entry">
-        <label class="g-sr" for="library-email">Email</label>
-        <input id="library-email" type="email" name="email" required autocomplete="email" inputmode="email" placeholder="you@studio.com">
+        <label class="g-sr" for="pricing-library-email">Email</label>
+        <input id="pricing-library-email" type="email" name="email" required autocomplete="email" inputmode="email" placeholder="you@studio.com">
         <button type="submit">Join the list</button>
       </div>
     </form>
     <p class="g-status" id="library-status" role="status"></p>
   </div>
 </section>
-<script>
-(function () {
-  var form = document.querySelector("form[name=library]");
-  if (!form) return;
-  var status = document.getElementById("library-status");
-  var button = form.querySelector("button");
-  form.addEventListener("submit", function (event) {
-    event.preventDefault();
-    button.disabled = true;
-    status.textContent = "Sending…";
-    var body = new URLSearchParams(new FormData(form)).toString();
-    fetch("/", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body
-    }).then(function (res) {
-      if (!res.ok) throw new Error(String(res.status));
-      form.hidden = true;
-      status.textContent = "You're on the list. We'll write when billing opens.";
-    }).catch(function () {
-      button.disabled = false;
-      status.textContent = "That didn't send. Check the email and try again.";
-    });
-  });
-})();
-</script>`;
+${FORM_SCRIPT}`;
 }
 
 function home(specs, ctx) {
   const total = specs.length;
   const hero = section(specs, ctx, "hero-14", {
     showEyebrow: false,
-    heading: "Paste the section. Keep your classes.",
+    heading: "Your next section. On your terms.",
     showDescription: true,
-    description: "The same section in Webflow, Figma, and code, on the classes the site already has. Built for teams comparing Relume, Flowbase, BRIX, and other Webflow component kits. A button named button stays button.",
+    description: "Pick a hero, pricing section, or footer. Get the same design in Webflow, Figma, or code, using your project’s class system: Client-First, BEM, or Flowkit. Built for the site you’re already building.",
     showButtons: true,
     buttons: [
-      { title: "Start free", href: "/gallery", variant: "primary" },
-      { title: "Compare libraries", href: "/compare", variant: "secondary-alt" },
+      { title: "Join the waitlist", href: "#library", variant: "primary" },
+      { title: "Explore the sections", href: "#sections", variant: "secondary-alt" },
     ],
     showHint: true,
-    hint: "Move the cursor. Every frame is a section from the gallery.",
-    trail: SHOT_IDS.map((id) => ({ image: shot(specs, id, "phone") })),
+    hint: "Move around. Real section previews from the set.",
+    trail: SHOT_IDS.map((id) => ({ image: shot(specs, id, "wide") })),
   }, { theme: "dark", typeSize: "large" });
-  const strip = section(specs, ctx, "gallery-05", {
+  const tiles = section(specs, ctx, "bento-02", {
     showEyebrow: false,
-    heading: `Ten of the ${total}`,
-    showDescription: true,
-    description: "Rendered from the same specs you copy. Open a frame to see its props, variants, and every output.",
-    showCaptions: true,
-    showCounter: false,
-    showWordmark: true,
-    wordmark: "The same section.",
-    frames: SHOT_IDS.map((id) => {
-      const spec = specs.find((item) => item.id === id);
-      return { title: spec?.name ?? id, meta: "", href: `/gallery#${id}`, image: shot(specs, id, "wide") };
-    }),
-  }, { theme: "dark", frameShape: "landscape" });
-  const outputs = section(specs, ctx, "logos-02", {
-    showLabel: true,
-    label: "One spec. Six outputs.",
-    logosTop: OUTPUTS.map(([file, name]) => ({ logo: { src: `./marks/${file}.svg`, alt: name } })),
-    showSecondRow: false,
-  });
-  const classes = section(specs, ctx, "features-46", {
-    showEyebrow: false,
-    heading: "Same button. The class the site already has.",
-    showDescription: true,
-    description: "One button spec, pasted three ways. Click the card to see the next one.",
-    cards: [
-      { title: "Client-First", note: "button is-primary. The names a Finsweet site already uses.", image: art("client-first", "A Webflow selector with the classes button and is-primary") },
-      { title: "BEM", note: "button button--primary. Block and modifier, the way a code team writes it.", image: art("bem", "A Webflow selector with the classes button and button--primary") },
-      { title: "Class Sync", note: "The site already has a class named button, so the paste uses it. Webflow does not get to name it button 2.", image: art("class-sync", "A Webflow selector reusing the class button instead of creating button 2") },
-    ],
+    heading: "Sections that move",
+    description: "Marquees, trails, and tilts from the library. Real previews of what’s inside once you’re invited.",
+    railLabel: "Ships as",
+    copyTitle: "Your class system",
+    copyText: "Client-First, BEM, or Flowkit. Pick the convention the project already follows.",
+    note: "One shared spec. Same design in every output.",
+    placeTitle: "Your format",
+    placeText: "Webflow paste, Figma, React, Astro, HTML, or vanilla.",
+    still: shot(specs, SHOT_IDS[4], "wide"),
+    words: ["Client-First", "BEM", "Flowkit", "Webflow", "Figma", "React", "Astro"].map((label) => ({ label })),
+    photos: SHOT_IDS.slice(1, 7).map((id) => ({ image: shot(specs, id, "wide") })),
   });
   const steps = section(specs, ctx, "process-03", {
     showEyebrow: false,
-    heading: "Pick it. Paste it.",
+    heading: "What happens next",
     showDescription: true,
-    description: "One section from the gallery, three places it can land.",
-    showNumbers: false,
+    description: "Join the waitlist. Access stays invite-only until you’re approved.",
+    showNumbers: true,
     showImages: true,
     steps: [
-      { title: "Pick a section", text: `Every card in the gallery is visible. ${FREE_IDS.length} sections copy free, in Client-First, with the Webflow paste.`, image: shot(specs, "hero-57", "wide") },
-      { title: "Paste in Webflow", text: "Copy to Webflow in a normal Chrome tab, then paste in the Designer. One footer snippet runs the motion.", image: shot(specs, "bento-14", "wide") },
-      { title: "Or build it in Figma", text: "Copy for Figma, then paste into the Blokset plugin. It builds the component in the open file.", image: shot(specs, "pricing-09", "wide") },
-      { title: "Or add it as code", text: "blokset add hero-05 --target react. Typed props, the same motion, the class names the project already uses.", image: shot(specs, "trust-03", "wide") },
+      { title: "Join the waitlist", text: "Leave an email. That puts you on the list; it doesn’t open the gallery yet.", image: shot(specs, SHOT_IDS[0], "wide") },
+      { title: "Receive an invite", text: "When you’re approved, we send a link so you can set a password and sign in.", image: shot(specs, SHOT_IDS[1], "wide") },
+      { title: "Sign in", text: "Use your email and password to open the library.", image: shot(specs, SHOT_IDS[2], "wide") },
+      { title: "Choose and ship", text: "Pick a section, your class system, and your output. Then take it into the project you’re building.", image: shot(specs, "hero-63", "wide") },
     ],
   }, { theme: "dark" });
-  const cta = section(specs, ctx, "cta-12", {
-    showEyebrow: false,
-    wordmark: "Blokset",
-    showNote: true,
-    note: `${FREE_IDS.length} sections copy free. ${total} in the gallery.`,
-    showButtons: true,
-    buttons: [{ title: "Start free", href: "/gallery", variant: "dark" }],
-  });
-  const footer = section(specs, ctx, "footer-04", { ...footerValues, showWordmark: false });
+  const footer = section(specs, ctx, "footer-04", waitlistFooter);
   const seo = homeSeo(total);
   return {
     ...seo,
@@ -324,11 +504,21 @@ function home(specs, ctx) {
           "@type": "Offer",
           price: "0",
           priceCurrency: "USD",
-          description: `${FREE_IDS.length} sections copy free`,
+          description: "Waitlist for the Blokset component library",
         },
       },
     ],
-    body: [hero, outputs, strip, classes, steps, cta, footer].join("\n"),
+    body: [
+      hero,
+      waitlistForm(),
+      proofSection(),
+      `<div id="sections">${tiles}</div>`,
+      competitivePitch(),
+      steps,
+      closingCta(),
+      footer,
+    ].join("\n"),
+    scripts: PROOF_SCRIPT,
   };
 }
 
@@ -475,17 +665,6 @@ function compare(specs, ctx) {
     hint: "Scroll for the matrix. Fair rows, not a teardown.",
     trail: SHOT_IDS.map((id) => ({ image: shot(specs, id, "phone") })),
   }, { theme: "dark", typeSize: "large" });
-  const points = section(specs, ctx, "features-46", {
-    showEyebrow: false,
-    heading: "What changes when you paste",
-    showDescription: true,
-    description: "Three things Relume-style kits usually do not try to solve at once.",
-    cards: [
-      { title: "Class Sync", note: "If the site already has button, the paste uses button. Webflow does not invent button 2.", image: art("class-sync", "A Webflow selector reusing the class button instead of creating button 2") },
-      { title: "Six outputs", note: "Webflow, Figma, React, Astro, HTML, and vanilla from one component spec.", image: art("client-first", "A Webflow selector with the classes button and is-primary") },
-      { title: "Your class system", note: "Client-First, BEM, or Flowkit—pick the naming the project already runs.", image: art("bem", "A Webflow selector with the classes button and button--primary") },
-    ],
-  });
   const compareFaqs = [
     { question: "Is Blokset a Relume alternative?", answer: "For Webflow section libraries, yes—people compare them. Relume is strong for sitemap-to-build workflows and a large Client-First style library. Blokset focuses on Class Sync, multi-framework class names, and shipping Figma plus code from the same spec." },
     { question: "How does Blokset compare to Flowbase?", answer: "Flowbase is a large Webflow UI kit with many polished sections. Blokset is smaller today but shows every card in the gallery, lets you paste free sections now, and keeps your existing class names when you paste." },
@@ -532,34 +711,409 @@ function compare(specs, ctx) {
         })),
       },
     ],
-    body: [hero, compareMatrix(), points, faq, cta, footer].join("\n"),
+    body: [hero, compareMatrix(), faq, cta, footer].join("\n"),
   };
 }
 
-/** @param {{ specs: import("../types").ComponentSpec[], ctx: import("../types").BuildContext, page: "home" | "pricing" | "compare", dev?: boolean }} opts */
-export function renderMarketing({ specs, ctx, page, dev = false }) {
-  const view = page === "pricing" ? pricing(specs, ctx) : page === "compare" ? compare(specs, ctx) : home(specs, ctx);
-  const ld = (view.jsonLd || []).map(jsonLd).join("\n");
+/**
+ * @param {{ title: string, description: string, path: string, current: string, body: string, jsonLd?: unknown[], scripts?: string, assetBase?: string, robots?: string, appChrome?: boolean, dev?: boolean }} opts
+ */
+function documentShell({ title, description, path, current, body, jsonLd: ld = [], scripts = "", assetBase = "./", robots, appChrome = false, dev = false }) {
+  const head = siteHead({ title, description, path });
+  const robotsMeta = robots ? head.replace('content="index,follow"', `content="${robots}"`) : head;
+  const ldTags = ld.map(jsonLd).join("\n");
+  const base = assetBase.endsWith("/") ? assetBase : `${assetBase}/`;
   return `<!doctype html>
 <html lang="en">
 <head>
-${siteHead({ title: view.title, description: view.description, path: view.path })}
+${robotsMeta}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="${FONTS}" rel="stylesheet">
 <style>${CHROME}</style>
-<link rel="stylesheet" href="./site.css">
-${ld}
+<link rel="stylesheet" href="${base}site.css">
+${ldTags}
+${posthogSnippet()}
 </head>
 <body>
-${chrome(view.current)}
+${chrome(current, { app: appChrome })}
 <main id="content">
-${view.body}
+${body}
 </main>
-<script src="./vendor/gsap.min.js"></script>
-<script src="./vendor/ScrollTrigger.min.js"></script>
-<script src="./motion.global.js"></script>
+<script src="${base}vendor/gsap.min.js"></script>
+<script src="${base}vendor/ScrollTrigger.min.js"></script>
+<script src="${base}motion.global.js"></script>
+${scripts}
 ${dev ? `<script>new EventSource("/__reload").onmessage = function () { location.reload(); };</script>` : ""}
 </body>
 </html>
 `;
 }
+
+function login(specs, ctx) {
+  const footer = section(specs, ctx, "footer-04", waitlistFooter);
+  const scripts = `<script>
+(function () {
+  var form = document.getElementById("login-form");
+  var invite = document.getElementById("invite-form");
+  var status = document.getElementById("login-status");
+  var emailInput = document.getElementById("login-email");
+  var passwordInput = document.getElementById("login-password");
+  var invitePassword = document.getElementById("invite-password");
+  var params = new URLSearchParams(location.search);
+  var inviteToken = params.get("invite") || "";
+  var next = params.get("next") || "/gallery";
+
+  function setStatus(text, ok) {
+    status.textContent = text;
+    status.style.color = ok ? "var(--g-fg)" : "#b42318";
+  }
+
+  function goNext(session) {
+    if (session && session.admin && (!params.get("next") || next === "/gallery")) {
+      location.href = "/admin";
+      return;
+    }
+    location.href = next.charAt(0) === "/" ? next : "/gallery";
+  }
+
+  async function boot() {
+    try {
+      var session = await fetch("/api/session", { credentials: "same-origin" }).then(function (r) { return r.json(); });
+      if (session && session.email) {
+        setStatus("Signed in as " + session.email + ". Opening…", true);
+        goNext(session);
+        return;
+      }
+    } catch (e) {}
+    if (inviteToken) {
+      invite.classList.add("is-open");
+      form.hidden = true;
+      setStatus("Set a password to accept your invite.", true);
+    }
+  }
+
+  form.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    var button = form.querySelector("button");
+    button.disabled = true;
+    setStatus("Signing in…", true);
+    try {
+      var res = await fetch("/api/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailInput.value.trim(), password: passwordInput.value })
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) {
+        button.disabled = false;
+        setStatus(data.error || "Sign-in failed. Try again.", false);
+        return;
+      }
+      goNext(data);
+    } catch (e) {
+      button.disabled = false;
+      setStatus("Sign-in failed. Try again.", false);
+    }
+  });
+
+  invite.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    if (!inviteToken) return;
+    var button = invite.querySelector("button");
+    button.disabled = true;
+    setStatus("Saving password…", true);
+    try {
+      var res = await fetch("/api/invite/accept", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: inviteToken, password: invitePassword.value })
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) {
+        button.disabled = false;
+        setStatus(data.error || "Could not accept the invite.", false);
+        return;
+      }
+      goNext(data);
+    } catch (e) {
+      button.disabled = false;
+      setStatus("Could not accept the invite.", false);
+    }
+  });
+
+  document.getElementById("login-signout").addEventListener("click", async function () {
+    await fetch("/api/logout", { method: "POST", credentials: "same-origin" });
+    if (window.posthog) posthog.reset();
+    setStatus("Signed out.", true);
+  });
+
+  boot();
+})();
+</script>`;
+  return {
+    title: "Sign in — Blokset",
+    description: "Sign in to open the Blokset gallery, compare page, and pricing.",
+    path: "/login",
+    current: "login",
+    body: `<section class="g-login" aria-labelledby="login-title">
+  <h1 id="login-title">Sign in</h1>
+  <p>The gallery, compare page, and pricing are invite-only. Join the list on the home page, then sign in after we approve you.</p>
+  <form id="login-form">
+    <label>Email <input id="login-email" type="email" name="email" required autocomplete="email" inputmode="email"></label>
+    <label>Password <input id="login-password" type="password" name="password" required autocomplete="current-password"></label>
+    <button type="submit">Sign in</button>
+  </form>
+  <form id="invite-form" class="g-login-invite">
+    <p>You were invited. Choose a password to finish setup.</p>
+    <label>New password <input id="invite-password" type="password" name="password" required autocomplete="new-password" minlength="8"></label>
+    <button type="submit">Accept invite</button>
+  </form>
+  <p class="g-status" id="login-status" role="status"></p>
+  <p><a href="/#library">Join the waitlist</a> · <button type="button" id="login-signout" style="all:unset;cursor:pointer;text-decoration:underline;font:inherit">Sign out</button></p>
+</section>
+${footer}`,
+    scripts,
+  };
+}
+
+function admin(specs, ctx) {
+  const footer = section(specs, ctx, "footer-04", waitlistFooter);
+  const scripts = `<script>
+(function () {
+  var list = document.getElementById("admin-list");
+  var empty = document.getElementById("admin-empty");
+  var status = document.getElementById("admin-status");
+  var who = document.getElementById("admin-who");
+  var form = document.getElementById("admin-add");
+  var emailInput = document.getElementById("admin-email");
+
+  function setStatus(text, ok) {
+    status.textContent = text || "";
+    status.style.color = ok === false ? "#b42318" : "var(--g-fg)";
+  }
+
+  function when(iso) {
+    if (!iso) return "";
+    try { return new Date(iso).toLocaleString(); } catch (e) { return iso; }
+  }
+
+  function label(person) {
+    if (person.status === "waitlist") return "Waitlist";
+    if (person.status === "invited") return "Invited";
+    return "Active";
+  }
+
+  async function invite(email, button) {
+    if (button) button.disabled = true;
+    setStatus("Creating invite…", true);
+    try {
+      var res = await fetch("/api/admin/invite", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email })
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) {
+        setStatus(data.error || "Invite failed.", false);
+        if (button) button.disabled = false;
+        return null;
+      }
+      if (data.inviteUrl && navigator.clipboard && navigator.clipboard.writeText) {
+        try { await navigator.clipboard.writeText(data.inviteUrl); } catch (e) {}
+      }
+      setStatus("Invite ready for " + data.email + ". Link copied when possible.", true);
+      await load();
+      return data;
+    } catch (e) {
+      setStatus("Invite failed.", false);
+      if (button) button.disabled = false;
+      return null;
+    }
+  }
+
+  function row(person) {
+    var li = document.createElement("li");
+    li.className = "g-admin-row";
+    var meta = document.createElement("div");
+    var line = document.createElement("div");
+    line.className = "g-admin-meta";
+    var strong = document.createElement("strong");
+    strong.textContent = person.email;
+    line.appendChild(strong);
+    var chip = document.createElement("span");
+    chip.className = "g-admin-chip";
+    chip.dataset.status = person.status;
+    chip.textContent = label(person);
+    line.appendChild(chip);
+    if (person.admin) {
+      var adminChip = document.createElement("span");
+      adminChip.className = "g-admin-chip";
+      adminChip.dataset.admin = "true";
+      adminChip.textContent = "Admin";
+      line.appendChild(adminChip);
+    }
+    if (person.plan) {
+      var plan = document.createElement("span");
+      plan.className = "g-admin-chip";
+      plan.textContent = person.plan;
+      line.appendChild(plan);
+    }
+    meta.appendChild(line);
+    var sub = document.createElement("p");
+    sub.className = "g-admin-sub";
+    if (person.status === "waitlist") sub.textContent = "Joined " + when(person.waitlistedAt);
+    else if (person.status === "invited") sub.textContent = (person.inviteUrl || "Invite pending") + (person.invitedAt ? " · " + when(person.invitedAt) : "");
+    else sub.textContent = "Active since " + when(person.userAt);
+    meta.appendChild(sub);
+    li.appendChild(meta);
+
+    var actions = document.createElement("div");
+    actions.className = "g-admin-actions";
+    if (person.status === "waitlist" || person.status === "invited") {
+      var approve = document.createElement("button");
+      approve.type = "button";
+      approve.textContent = person.status === "invited" ? "Re-invite" : "Approve";
+      approve.addEventListener("click", function () { invite(person.email, approve); });
+      actions.appendChild(approve);
+    }
+    if (person.status === "invited" && person.inviteUrl) {
+      var copy = document.createElement("button");
+      copy.type = "button";
+      copy.className = "g-admin-secondary";
+      copy.textContent = "Copy link";
+      copy.addEventListener("click", async function () {
+        try {
+          await navigator.clipboard.writeText(person.inviteUrl);
+          setStatus("Invite link copied.", true);
+        } catch (e) {
+          setStatus(person.inviteUrl, true);
+        }
+      });
+      actions.appendChild(copy);
+    }
+    if (actions.childNodes.length) li.appendChild(actions);
+    return li;
+  }
+
+  async function load() {
+    setStatus("Loading…", true);
+    try {
+      var res = await fetch("/api/admin/people", { credentials: "same-origin" });
+      if (res.status === 401) {
+        location.href = "/login?next=%2Fadmin";
+        return;
+      }
+      var data = await res.json();
+      if (!res.ok) {
+        setStatus(data.error || "Could not load people.", false);
+        return;
+      }
+      who.textContent = "Signed in as " + data.admin;
+      list.innerHTML = "";
+      (data.people || []).forEach(function (person) { list.appendChild(row(person)); });
+      empty.hidden = (data.people || []).length > 0;
+      setStatus("", true);
+    } catch (e) {
+      setStatus("Could not load people.", false);
+    }
+  }
+
+  form.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    var email = emailInput.value.trim();
+    if (!email) return;
+    var button = form.querySelector("button");
+    var data = await invite(email, button);
+    if (data) {
+      emailInput.value = "";
+      button.disabled = false;
+    }
+  });
+
+  load();
+})();
+</script>`;
+  return {
+    title: "Admin — Blokset",
+    description: "Approve waitlist signups and invite people into the library.",
+    path: "/admin",
+    current: "admin",
+    robots: "noindex,nofollow",
+    body: `<section class="g-admin" aria-labelledby="admin-title">
+  <h1 id="admin-title">People</h1>
+  <p class="g-admin-lead" id="admin-who">Loading…</p>
+  <form id="admin-add" class="g-admin-add">
+    <label class="g-sr" for="admin-email">Email to invite</label>
+    <input id="admin-email" type="email" name="email" required autocomplete="email" inputmode="email" placeholder="someone@studio.com">
+    <button type="submit">Invite</button>
+  </form>
+  <p class="g-status" id="admin-status" role="status"></p>
+  <p class="g-admin-empty" id="admin-empty" hidden>No one on the list yet.</p>
+  <ul class="g-admin-list" id="admin-list"></ul>
+</section>
+${footer}`,
+    scripts,
+  };
+}
+
+function mocksIndex() {
+  const items = MOCKS.map((mock) =>
+    `<li><a href="/mocks/${esc(mock.id)}"><strong>${esc(mock.title)}</strong><span>${esc(mock.blurb)}</span></a></li>`
+  ).join("\n");
+  return {
+    title: "Waitlist mocks — Blokset",
+    description: "Seven interactive waitlist page compositions for Blokset pre-launch.",
+    path: "/mocks",
+    current: "home",
+    robots: "noindex,nofollow",
+    body: `<section class="g-mocks">
+  <h1>Waitlist mocks</h1>
+  <p>Exploration pages. The public home is the Trail composition: hero, signup, footer. None of these use the Class Sync card deck.</p>
+  <ol class="g-mock-list">
+${items}
+  </ol>
+</section>`,
+  };
+}
+
+function mockPage(specs, ctx, id) {
+  const mock = getMock(id);
+  if (!mock) return null;
+  const footer = section(specs, ctx, "footer-04", waitlistFooter);
+  return {
+    title: `${mock.title} mock — Blokset`,
+    description: mock.blurb,
+    path: `/mocks/${mock.id}`,
+    current: "home",
+    robots: "noindex,nofollow",
+    body: mock.body(specs, ctx, waitlistForm(), footer),
+  };
+}
+
+/** @param {{ specs: import("../types").ComponentSpec[], ctx: import("../types").BuildContext, page: "home" | "pricing" | "compare" | "login" | "admin", dev?: boolean }} opts */
+export function renderMarketing({ specs, ctx, page, dev = false }) {
+  const view = page === "pricing" ? pricing(specs, ctx)
+    : page === "compare" ? compare(specs, ctx)
+    : page === "login" ? login(specs, ctx)
+    : page === "admin" ? admin(specs, ctx)
+    : home(specs, ctx);
+  const appChrome = page === "pricing" || page === "compare";
+  return documentShell({ ...view, jsonLd: view.jsonLd || [], scripts: view.scripts || "", assetBase: "./", appChrome, robots: view.robots, dev });
+}
+
+/** Dev-only mock index. */
+export function renderMocksIndex({ dev = false } = {}) {
+  return documentShell({ ...mocksIndex(), assetBase: "../", scripts: "", dev });
+}
+
+/** Dev-only mock page. */
+export function renderMockPage({ specs, ctx, id, dev = false }) {
+  const view = mockPage(specs, ctx, id);
+  if (!view) return null;
+  return documentShell({ ...view, assetBase: "../", scripts: "", dev });
+}
+
+export { MOCKS, getMock };

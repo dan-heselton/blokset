@@ -19,7 +19,7 @@ for (let i = 0; i < rest.length; i++) {
 
 const HELP = `Blokset
 
-  blokset dev                         Site at http://localhost:4400, gallery at /gallery
+  blokset dev                         Site at http://localhost:4400, gallery at /gallery, mocks at /mocks
   blokset build [--config <path>]        Build every framework × target into dist/
   blokset sync <styles.json> --out <file> [--variables <file>] [--site <id>]
                                     Save a get_styles export, and optional variables, for Class Sync

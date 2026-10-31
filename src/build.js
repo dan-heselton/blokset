@@ -14,7 +14,8 @@ import { reuseCounts } from "./sync.js";
 import { componentManifest, variablesManifest } from "./generators/webflow-manifest.js";
 import { motionEsm, motionDts, motionGlobal, webflowFooterCode, gsapCdnTags } from "./runtime/build-runtime.js";
 import { renderGallery, specimenDocument } from "./gallery/template.js";
-import { MARKETING_IDS, renderMarketing } from "./site/pages.js";
+import { libraryCatalog } from "./site/library.js";
+import { MARKETING_IDS, renderMarketing, renderMocksIndex, renderMockPage, MOCKS } from "./site/pages.js";
 import { robotsTxt, sitemapXml, webManifest } from "./site/seo.js";
 
 const SHARED_INDEX = `@import "./tokens.css";\n@import "./utilities.css";\n@import "./buttons.css";\n`;
@@ -226,12 +227,14 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
   const siteSpecs = specs.filter((spec) => MARKETING_IDS.includes(spec.id));
   const marketing = { specs, ctx, dev };
   const previews = Object.fromEntries(specs.map((s) => [s.id, generateHtml(s, ctx)]));
-  writeFiles(galleryDir, {
+  const siteFiles = {
     "preview.css": previewCss,
     "site.css": sheet(siteSpecs),
     "index.html": renderMarketing({ ...marketing, page: "home" }),
     "pricing.html": renderMarketing({ ...marketing, page: "pricing" }),
     "compare.html": renderMarketing({ ...marketing, page: "compare" }),
+    "login.html": renderMarketing({ ...marketing, page: "login" }),
+    "admin.html": renderMarketing({ ...marketing, page: "admin" }),
     "gallery.html": renderGallery({
       specs,
       config,
@@ -249,15 +252,24 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
     "robots.txt": robotsTxt(),
     "sitemap.xml": sitemapXml(),
     "site.webmanifest": webManifest(),
-    // No _redirects: Cloudflare Pages already serves gallery.html at /gallery
-    // (and strips .html). Rewrites here cause ERR_TOO_MANY_REDIRECTS.
-    // Netlify pretty URLs live in netlify.toml; local `blokset dev` uses ROUTES.
-  });
+    // Pretty URLs: Workers assets html_handling + local `blokset dev` ROUTES.
+  };
+  writeFiles(galleryDir, siteFiles);
+  if (dev) {
+    const mocksDir = join(galleryDir, "mocks");
+    mkdirSync(mocksDir, { recursive: true });
+    writeFileSync(join(mocksDir, "index.html"), renderMocksIndex({ dev }));
+    for (const mock of MOCKS) {
+      const html = renderMockPage({ specs, ctx, id: mock.id, dev });
+      if (html) writeFileSync(join(mocksDir, `${mock.id}.html`), html);
+    }
+  }
   // Specimens + copy payloads are separate files so gallery.html stays under Cloudflare Pages' 25 MiB limit.
   const specimensDir = join(galleryDir, "specimens");
   const dataDir = join(galleryDir, "data");
   mkdirSync(specimensDir, { recursive: true });
   mkdirSync(dataDir, { recursive: true });
+  writeFileSync(join(dataDir, "library.json"), JSON.stringify(libraryCatalog(specs)));
   for (const spec of specs) {
     writeFileSync(join(specimensDir, `${spec.id}.html`), specimenDocument(previews[spec.id] || ""));
     writeFileSync(join(dataDir, `${spec.id}.json`), JSON.stringify({
@@ -267,7 +279,7 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
   }
   mkdirSync(join(galleryDir, "vendor"), { recursive: true });
   for (const f of ["gsap.min.js", "ScrollTrigger.min.js"]) copyFileSync(join(ROOT, "node_modules/gsap/dist", f), join(galleryDir, "vendor", f));
-  for (const dir of ["shots", "marks", "art"]) {
+  for (const dir of ["shots", "marks", "art", "media"]) {
     mkdirSync(join(galleryDir, dir), { recursive: true });
     for (const f of readdirSync(join(ROOT, "src/site", dir))) copyFileSync(join(ROOT, "src/site", dir, f), join(galleryDir, dir, f));
   }
@@ -281,7 +293,7 @@ export async function buildProject({ dev = false, out = join(ROOT, "dist"), log 
   const pluginDir = join(ROOT, "figma-plugin");
   mkdirSync(pluginDir, { recursive: true });
   writeFileSync(join(pluginDir, "code.js"), readSource(join(ROOT, "src/figma-runtime/builder.js"), "utf8"));
-  log(`✓ gallery        ${specs.length} components → dist/gallery/ (home, pricing, compare, gallery)`);
+  log(`✓ gallery        ${specs.length} components → dist/gallery/ (home, pricing, compare, login, gallery)`);
   log(`✓ figma          ${specs.length} components → dist/<framework>/figma/`);
   return { config, specs };
 }

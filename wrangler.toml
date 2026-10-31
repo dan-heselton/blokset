@@ -1,5 +1,39 @@
-# Cloudflare Pages — site publish root is the gallery build output.
-# Deploy: npm run build && npx wrangler pages deploy
+# Cloudflare Workers + static assets (dist/gallery).
+# Deploy: npm run deploy:cf
 name = "blokset"
+main = "workers/site.js"
 compatibility_date = "2026-10-18"
-pages_build_output_dir = "dist/gallery"
+workers_dev = true
+preview_urls = false
+
+# Custom domains are attached via Cloudflare API / dashboard (blokset.dev, www.blokset.dev).
+
+[assets]
+directory = "dist/gallery"
+binding = "ASSETS"
+html_handling = "auto-trailing-slash"
+# Gate library routes and handle APIs before static files.
+run_worker_first = [
+  "/api/*",
+  "/gallery",
+  "/gallery.html",
+  "/pricing",
+  "/pricing.html",
+  "/compare",
+  "/compare.html",
+  "/admin",
+  "/admin.html",
+  "/specimens/*",
+  "/data/*",
+]
+
+[[kv_namespaces]]
+binding = "STORE"
+id = "4904ba2e97354f08b33aa2bbbe503168"
+preview_id = "5e18d70b9804454f9d7490f8f2588f07"
+
+[observability]
+enabled = true
+
+[observability.traces]
+enabled = true
