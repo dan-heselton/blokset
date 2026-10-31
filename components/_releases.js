@@ -277,4 +277,7 @@ export const releases = [
     "carousel-05", "carousel-06",
     "work-11", "work-12", "work-13",
   ] },
+  { id: "12", label: "Release 12", ids: [
+    "bento-28", "bento-29", "bento-30",
+  ] },
 ];
